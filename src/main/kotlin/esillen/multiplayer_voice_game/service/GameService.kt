@@ -1,0 +1,304 @@
+package esillen.multiplayer_voice_game.service
+
+import esillen.multiplayer_voice_game.model.*
+import esillen.multiplayer_voice_game.model.GameState.Companion.BALL_SIZE
+import esillen.multiplayer_voice_game.model.GameState.Companion.CANVAS_HEIGHT
+import esillen.multiplayer_voice_game.model.GameState.Companion.CANVAS_WIDTH
+import esillen.multiplayer_voice_game.model.GameState.Companion.PADDLE_HEIGHT
+import esillen.multiplayer_voice_game.model.GameState.Companion.PADDLE_MARGIN
+import esillen.multiplayer_voice_game.model.GameState.Companion.PADDLE_SPEED
+import esillen.multiplayer_voice_game.model.GameState.Companion.PADDLE_WIDTH
+import esillen.multiplayer_voice_game.model.GameState.Companion.WINNING_SCORE
+import org.springframework.scheduling.annotation.Scheduled
+import org.springframework.stereotype.Service
+import org.springframework.web.socket.WebSocketSession
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.abs
+import kotlin.math.sign
+
+@Service
+class GameService {
+
+    private val gameState = GameState()
+    private val players = ConcurrentHashMap<String, Player>()
+    private val spectators = ConcurrentHashMap<String, WebSocketSession>()
+    
+    var onStateUpdate: ((GameStateDto) -> Unit)? = null
+    var onPlayerJoined: ((Player) -> Unit)? = null
+    var onPlayerLeft: ((Player) -> Unit)? = null
+    var onPlayerReady: ((Player) -> Unit)? = null
+    var onGameOver: ((String) -> Unit)? = null
+
+    fun joinGame(name: String, side: PaddleSide, session: WebSocketSession): Result<Player> {
+        // Check if side is already taken
+        val existingPlayer = players.values.find { it.side == side }
+        if (existingPlayer != null) {
+            return Result.failure(Exception("${side.name} paddle is already taken by ${existingPlayer.name}"))
+        }
+
+        val player = Player(
+            id = UUID.randomUUID().toString(),
+            name = name,
+            side = side,
+            session = session,
+            paddleY = CANVAS_HEIGHT / 2
+        )
+        players[player.id] = player
+
+        // Update game status
+        if (players.size == 2 && gameState.status == GameStatus.WAITING) {
+            gameState.status = GameStatus.READY_CHECK
+        }
+
+        onPlayerJoined?.invoke(player)
+        return Result.success(player)
+    }
+
+    fun addSpectator(session: WebSocketSession): String {
+        val id = UUID.randomUUID().toString()
+        spectators[id] = session
+        return id
+    }
+
+    fun removeSpectator(id: String) {
+        spectators.remove(id)
+    }
+
+    fun playerReady(playerId: String) {
+        val player = players[playerId] ?: return
+        player.isReady = true
+        onPlayerReady?.invoke(player)
+
+        // Check if both players are ready
+        if (players.size == 2 && players.values.all { it.isReady }) {
+            startGame()
+        }
+    }
+
+    fun updatePitch(playerId: String, pitch: PitchState) {
+        val player = players[playerId] ?: return
+        player.pitchState = pitch
+    }
+
+    fun playerDisconnected(session: WebSocketSession) {
+        val player = players.values.find { it.session == session }
+        if (player != null) {
+            players.remove(player.id)
+            onPlayerLeft?.invoke(player)
+            
+            // Pause or reset game
+            if (gameState.status == GameStatus.PLAYING) {
+                gameState.status = GameStatus.PAUSED
+            } else {
+                gameState.status = GameStatus.WAITING
+            }
+        }
+
+        // Check spectators too
+        spectators.entries.find { it.value == session }?.let {
+            spectators.remove(it.key)
+        }
+    }
+
+    fun getPlayer(playerId: String): Player? = players[playerId]
+
+    fun getPlayerBySession(session: WebSocketSession): Player? =
+        players.values.find { it.session == session }
+
+    fun isSpectator(session: WebSocketSession): Boolean =
+        spectators.values.any { it == session }
+
+    fun getAllSessions(): List<WebSocketSession> {
+        val sessions = mutableListOf<WebSocketSession>()
+        players.values.mapNotNull { it.session }.forEach { sessions.add(it) }
+        spectators.values.forEach { sessions.add(it) }
+        return sessions
+    }
+
+    fun getCurrentStateDto(): GameStateDto {
+        val leftPlayer = players.values.find { it.side == PaddleSide.LEFT }
+        val rightPlayer = players.values.find { it.side == PaddleSide.RIGHT }
+
+        return GameStateDto(
+            status = gameState.status.name,
+            leftScore = gameState.leftScore,
+            rightScore = gameState.rightScore,
+            ballX = gameState.ball.x,
+            ballY = gameState.ball.y,
+            leftPaddleY = gameState.leftPaddleY,
+            rightPaddleY = gameState.rightPaddleY,
+            leftPlayerName = leftPlayer?.name,
+            rightPlayerName = rightPlayer?.name,
+            leftPlayerReady = leftPlayer?.isReady ?: false,
+            rightPlayerReady = rightPlayer?.isReady ?: false,
+            winner = gameState.winner
+        )
+    }
+
+    private fun startGame() {
+        gameState.status = GameStatus.PLAYING
+        resetBall(towardsLeft = Math.random() > 0.5)
+    }
+
+    private fun resetBall(towardsLeft: Boolean) {
+        gameState.ball.x = CANVAS_WIDTH / 2
+        gameState.ball.y = CANVAS_HEIGHT / 2
+        val speed = 5.0
+        gameState.ball.velocityX = if (towardsLeft) -speed else speed
+        gameState.ball.velocityY = (Math.random() - 0.5) * 4
+    }
+
+    @Scheduled(fixedRate = 16) // ~60fps
+    fun gameLoop() {
+        if (gameState.status != GameStatus.PLAYING) {
+            // Still broadcast state for UI updates
+            onStateUpdate?.invoke(getCurrentStateDto())
+            return
+        }
+
+        updatePaddles()
+        updateBall()
+        checkCollisions()
+        checkScoring()
+
+        onStateUpdate?.invoke(getCurrentStateDto())
+    }
+
+    private fun updatePaddles() {
+        players.values.forEach { player ->
+            val direction = when (player.pitchState) {
+                PitchState.HIGH -> -1.0  // Up
+                PitchState.LOW -> 1.0    // Down
+                else -> 0.0
+            }
+
+            val newY = player.paddleY + (direction * PADDLE_SPEED)
+            player.paddleY = newY.coerceIn(PADDLE_HEIGHT / 2, CANVAS_HEIGHT - PADDLE_HEIGHT / 2)
+
+            // Update game state paddle positions
+            when (player.side) {
+                PaddleSide.LEFT -> gameState.leftPaddleY = player.paddleY
+                PaddleSide.RIGHT -> gameState.rightPaddleY = player.paddleY
+            }
+        }
+    }
+
+    private fun updateBall() {
+        gameState.ball.x += gameState.ball.velocityX
+        gameState.ball.y += gameState.ball.velocityY
+    }
+
+    private fun checkCollisions() {
+        val ball = gameState.ball
+
+        // Top/bottom wall collision
+        if (ball.y - BALL_SIZE / 2 <= 0 || ball.y + BALL_SIZE / 2 >= CANVAS_HEIGHT) {
+            ball.velocityY = -ball.velocityY
+            ball.y = ball.y.coerceIn(BALL_SIZE / 2, CANVAS_HEIGHT - BALL_SIZE / 2)
+        }
+
+        // Left paddle collision
+        val leftPaddleX = PADDLE_MARGIN
+        if (ball.x - BALL_SIZE / 2 <= leftPaddleX + PADDLE_WIDTH &&
+            ball.x + BALL_SIZE / 2 >= leftPaddleX &&
+            ball.velocityX < 0
+        ) {
+            val paddleTop = gameState.leftPaddleY - PADDLE_HEIGHT / 2
+            val paddleBottom = gameState.leftPaddleY + PADDLE_HEIGHT / 2
+            if (ball.y >= paddleTop && ball.y <= paddleBottom) {
+                ball.velocityX = -ball.velocityX * 1.05 // Slight speedup
+                
+                // Adjust angle based on where ball hit paddle
+                val hitPos = (ball.y - gameState.leftPaddleY) / (PADDLE_HEIGHT / 2)
+                ball.velocityY = hitPos * 5
+                
+                ball.x = leftPaddleX + PADDLE_WIDTH + BALL_SIZE / 2
+            }
+        }
+
+        // Right paddle collision
+        val rightPaddleX = CANVAS_WIDTH - PADDLE_MARGIN - PADDLE_WIDTH
+        if (ball.x + BALL_SIZE / 2 >= rightPaddleX &&
+            ball.x - BALL_SIZE / 2 <= rightPaddleX + PADDLE_WIDTH &&
+            ball.velocityX > 0
+        ) {
+            val paddleTop = gameState.rightPaddleY - PADDLE_HEIGHT / 2
+            val paddleBottom = gameState.rightPaddleY + PADDLE_HEIGHT / 2
+            if (ball.y >= paddleTop && ball.y <= paddleBottom) {
+                ball.velocityX = -ball.velocityX * 1.05 // Slight speedup
+                
+                // Adjust angle based on where ball hit paddle
+                val hitPos = (ball.y - gameState.rightPaddleY) / (PADDLE_HEIGHT / 2)
+                ball.velocityY = hitPos * 5
+                
+                ball.x = rightPaddleX - BALL_SIZE / 2
+            }
+        }
+
+        // Cap ball speed
+        val maxSpeed = 15.0
+        if (abs(ball.velocityX) > maxSpeed) {
+            ball.velocityX = maxSpeed * ball.velocityX.sign
+        }
+        if (abs(ball.velocityY) > maxSpeed) {
+            ball.velocityY = maxSpeed * ball.velocityY.sign
+        }
+    }
+
+    private fun checkScoring() {
+        val ball = gameState.ball
+
+        // Ball went past left paddle
+        if (ball.x < 0) {
+            gameState.rightScore++
+            checkWinner()
+            if (gameState.status == GameStatus.PLAYING) {
+                resetBall(towardsLeft = true) // Give ball to scored-on player
+            }
+        }
+
+        // Ball went past right paddle
+        if (ball.x > CANVAS_WIDTH) {
+            gameState.leftScore++
+            checkWinner()
+            if (gameState.status == GameStatus.PLAYING) {
+                resetBall(towardsLeft = false) // Give ball to scored-on player
+            }
+        }
+    }
+
+    private fun checkWinner() {
+        val leftPlayer = players.values.find { it.side == PaddleSide.LEFT }
+        val rightPlayer = players.values.find { it.side == PaddleSide.RIGHT }
+
+        when {
+            gameState.leftScore >= WINNING_SCORE -> {
+                gameState.status = GameStatus.FINISHED
+                gameState.winner = leftPlayer?.name ?: "Left Player"
+                onGameOver?.invoke(gameState.winner!!)
+            }
+            gameState.rightScore >= WINNING_SCORE -> {
+                gameState.status = GameStatus.FINISHED
+                gameState.winner = rightPlayer?.name ?: "Right Player"
+                onGameOver?.invoke(gameState.winner!!)
+            }
+        }
+    }
+
+    fun resetGame() {
+        gameState.status = GameStatus.WAITING
+        gameState.leftScore = 0
+        gameState.rightScore = 0
+        gameState.winner = null
+        gameState.leftPaddleY = CANVAS_HEIGHT / 2
+        gameState.rightPaddleY = CANVAS_HEIGHT / 2
+        resetBall(towardsLeft = Math.random() > 0.5)
+        
+        players.values.forEach { 
+            it.isReady = false 
+            it.paddleY = CANVAS_HEIGHT / 2
+        }
+    }
+}
+

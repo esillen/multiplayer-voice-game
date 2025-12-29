@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/header :: head('Voice Pong - Join Game')}"></head>
+<body>
+    <div class="scanlines"></div>
+    <div class="container">
+        <header th:replace="~{fragments/header :: navbar}"></header>
+        
+        <main class="join-page">
+            <h1 class="page-title">JOIN GAME</h1>
+            
+            <form id="joinForm" class="join-form">
+                <div class="form-group">
+                    <label for="playerName">ENTER YOUR NAME</label>
+                    <input type="text" id="playerName" name="name" 
+                           required maxlength="12" placeholder="PLAYER 1"
+                           autocomplete="off">
+                </div>
+                
+                <div class="form-group">
+                    <label>SELECT YOUR SIDE</label>
+                    <div class="side-selector">
+                        <label class="side-option" th:classappend="${leftTaken} ? 'disabled' : ''">
+                            <input type="radio" name="side" value="LEFT" 
+                                   th:disabled="${leftTaken}" required>
+                            <div class="side-card">
+                                <div class="side-visual left-side">
+                                    <div class="mini-paddle"></div>
+                                </div>
+                                <span class="side-label">LEFT PADDLE</span>
+                                <span class="side-status" th:if="${leftTaken}">
+                                    Taken by <span th:text="${leftPlayerName}">Player</span>
+                                </span>
+                                <span class="side-status available" th:unless="${leftTaken}">
+                                    Available
+                                </span>
+                            </div>
+                        </label>
+                        
+                        <label class="side-option" th:classappend="${rightTaken} ? 'disabled' : ''">
+                            <input type="radio" name="side" value="RIGHT"
+                                   th:disabled="${rightTaken}" required>
+                            <div class="side-card">
+                                <div class="side-visual right-side">
+                                    <div class="mini-paddle"></div>
+                                </div>
+                                <span class="side-label">RIGHT PADDLE</span>
+                                <span class="side-status" th:if="${rightTaken}">
+                                    Taken by <span th:text="${rightPlayerName}">Player</span>
+                                </span>
+                                <span class="side-status available" th:unless="${rightTaken}">
+                                    Available
+                                </span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-large">
+                    <span class="btn-icon">🎮</span>
+                    <span>ENTER GAME</span>
+                </button>
+            </form>
+            
+            <div class="join-info" th:if="${leftTaken and rightTaken}">
+                <p class="warning">⚠️ Both sides are taken! You can <a th:href="@{/spectate}">spectate</a> instead.</p>
+            </div>
+        </main>
+        
+        <footer th:replace="~{fragments/footer :: footer}"></footer>
+    </div>
+    
+    <script>
+        document.getElementById('joinForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const name = document.getElementById('playerName').value.trim();
+            const side = document.querySelector('input[name="side"]:checked');
+            
+            if (!name) {
+                alert('Please enter your name');
+                return;
+            }
+            if (!side) {
+                alert('Please select a side');
+                return;
+            }
+            
+            window.location.href = '/play?name=' + encodeURIComponent(name) + '&side=' + side.value;
+        });
+    </script>
+</body>
+</html>
+

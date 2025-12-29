@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/header :: head('Voice Pong - Spectating')}"></head>
+<body>
+    <div class="scanlines"></div>
+    <div class="container play-container">
+        <header th:replace="~{fragments/header :: navbar}"></header>
+        
+        <main class="game-page spectate-page">
+            <div class="spectate-badge">
+                <span>👁️ SPECTATING</span>
+            </div>
+            
+            <div class="game-header">
+                <div class="player-info left-player">
+                    <span class="player-name" id="leftPlayerName">Waiting...</span>
+                    <span class="score" id="leftScore">0</span>
+                    <span class="ready-indicator" id="leftReady">NOT READY</span>
+                </div>
+                
+                <div class="game-status">
+                    <span id="gameStatus" class="status-text">WAITING FOR PLAYERS</span>
+                </div>
+                
+                <div class="player-info right-player">
+                    <span class="ready-indicator" id="rightReady">NOT READY</span>
+                    <span class="score" id="rightScore">0</span>
+                    <span class="player-name" id="rightPlayerName">Waiting...</span>
+                </div>
+            </div>
+            
+            <div class="game-canvas-container">
+                <canvas id="gameCanvas" width="800" height="500"></canvas>
+                
+                <div id="gameOverlay" class="game-overlay">
+                    <div class="overlay-content" id="overlayContent">
+                        <h2>Waiting for players...</h2>
+                        <p>The game will start when two players join and ready up!</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="spectate-info">
+                <p>Watch the action! Want to play? <a th:href="@{/join}">Join the game</a></p>
+            </div>
+        </main>
+        
+        <footer th:replace="~{fragments/footer :: footer}"></footer>
+    </div>
+    
+    <script th:src="@{/js/game-renderer.js}"></script>
+    <script th:src="@{/js/websocket.js}"></script>
+    <script th:src="@{/js/spectate.js}"></script>
+</body>
+</html>
+

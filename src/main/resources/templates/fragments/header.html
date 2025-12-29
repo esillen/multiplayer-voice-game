@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:fragment="head(title)">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${title}">Voice Pong</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+
+<header th:fragment="navbar">
+    <nav class="navbar">
+        <a th:href="@{/}" class="nav-logo">🎤 VOICE PONG</a>
+        <div class="nav-links">
+            <a th:href="@{/join}" class="nav-link">Join Game</a>
+            <a th:href="@{/spectate}" class="nav-link">Spectate</a>
+        </div>
+    </nav>
+</header>
+</html>
+
