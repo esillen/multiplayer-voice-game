@@ -7,103 +7,101 @@
         <header th:replace="~{fragments/header :: navbar}"></header>
         
         <main class="calibrate-page">
-            <h1 class="page-title">VOICE CALIBRATION</h1>
+            <!-- Test Paddle on the left side -->
+            <div class="test-paddle-sidebar" id="testPaddleArea">
+                <div class="test-paddle-track">
+                    <div class="test-paddle" id="testPaddle"></div>
+                </div>
+                <span class="test-paddle-label">TEST</span>
+            </div>
             
-            <!-- Enhanced Pitch Meter with Draggable Thresholds -->
-            <div class="pitch-meter-section">
-                <h3>PITCH THRESHOLDS</h3>
-                <div class="pitch-meter-container">
-                    <div class="pitch-scale">
-                        <span>60 Hz</span>
-                        <span>200 Hz</span>
-                        <span>350 Hz</span>
-                        <span>500 Hz</span>
-                    </div>
-                    <div class="pitch-meter-bar" id="pitchMeterBar">
-                        <!-- Current pitch marker -->
-                        <div class="pitch-marker" id="pitchMarker"></div>
-                        
-                        <!-- Draggable threshold markers -->
-                        <div class="threshold-marker high-threshold" id="highThreshold" draggable="true">
-                            <div class="threshold-handle"></div>
-                            <span class="threshold-label">HIGH</span>
+            <!-- Main content centered -->
+            <div class="calibrate-content">
+                <h1 class="page-title">VOICE CALIBRATION</h1>
+                
+                <!-- Enhanced Pitch Meter with Draggable Thresholds -->
+                <div class="pitch-meter-section">
+                    <h3>PITCH THRESHOLDS</h3>
+                    <div class="pitch-meter-container">
+                        <div class="pitch-scale">
+                            <span>60 Hz</span>
+                            <span>200 Hz</span>
+                            <span>350 Hz</span>
+                            <span>500 Hz</span>
                         </div>
-                        <div class="threshold-marker low-threshold" id="lowThreshold" draggable="true">
-                            <div class="threshold-handle"></div>
-                            <span class="threshold-label">LOW</span>
+                        <div class="pitch-meter-bar" id="pitchMeterBar">
+                            <!-- Current pitch marker -->
+                            <div class="pitch-marker" id="pitchMarker"></div>
+                            
+                            <!-- Draggable threshold markers -->
+                            <div class="threshold-marker high-threshold" id="highThreshold" draggable="true">
+                                <div class="threshold-handle"></div>
+                                <span class="threshold-label">HIGH</span>
+                            </div>
+                            <div class="threshold-marker low-threshold" id="lowThreshold" draggable="true">
+                                <div class="threshold-handle"></div>
+                                <span class="threshold-label">LOW</span>
+                            </div>
+                            
+                            <!-- Zone fills -->
+                            <div class="zone-fill low-zone-fill" id="lowZoneFill"></div>
+                            <div class="zone-fill high-zone-fill" id="highZoneFill"></div>
                         </div>
-                        
-                        <!-- Zone fills -->
-                        <div class="zone-fill low-zone-fill" id="lowZoneFill"></div>
-                        <div class="zone-fill high-zone-fill" id="highZoneFill"></div>
+                        <div class="zone-labels">
+                            <span class="zone-label low">LOW ZONE</span>
+                            <span class="zone-label mid">MEDIUM ZONE</span>
+                            <span class="zone-label high">HIGH ZONE</span>
+                        </div>
                     </div>
-                    <div class="zone-labels">
-                        <span class="zone-label low">LOW ZONE</span>
-                        <span class="zone-label mid">MEDIUM ZONE</span>
-                        <span class="zone-label high">HIGH ZONE</span>
+                    
+                    <div class="current-pitch">
+                        <span id="currentFrequency">-- Hz</span>
+                        <span id="currentPitchLabel" class="pitch-state">WAITING</span>
                     </div>
                 </div>
                 
-                <div class="current-pitch">
-                    <span id="currentFrequency">-- Hz</span>
-                    <span id="currentPitchLabel" class="pitch-state">WAITING</span>
+                <!-- Calibration Controls -->
+                <div class="calibration-controls">
+                    <div class="calibrate-btn-group">
+                        <button id="calibrateLow" class="calibrate-btn low">
+                            <span class="btn-label">🎵 CALIBRATE LOW</span>
+                            <span class="btn-value" id="lowValue">-- Hz</span>
+                            <div class="recording-ring" id="lowRecordingRing"></div>
+                        </button>
+                        <button id="calibrateHigh" class="calibrate-btn high">
+                            <span class="btn-label">🎵 CALIBRATE HIGH</span>
+                            <span class="btn-value" id="highValue">-- Hz</span>
+                            <div class="recording-ring" id="highRecordingRing"></div>
+                        </button>
+                    </div>
+                    
+                    <p class="calibrate-hint">
+                        Click a button and hold your pitch for 2 seconds.<br>
+                        Or drag the threshold markers to adjust manually.
+                    </p>
+                    
+                    <div class="threshold-display">
+                        <div class="threshold-info low">
+                            <span class="label">Low Threshold:</span>
+                            <span class="value" id="lowThresholdValue">180 Hz</span>
+                        </div>
+                        <div class="threshold-info high">
+                            <span class="label">High Threshold:</span>
+                            <span class="value" id="highThresholdValue">280 Hz</span>
+                        </div>
+                    </div>
                 </div>
-            </div>
-            
-            <!-- Calibration Controls -->
-            <div class="calibration-controls">
-                <div class="calibrate-btn-group">
-                    <button id="calibrateLow" class="calibrate-btn low">
-                        <span class="btn-label">🎵 CALIBRATE LOW</span>
-                        <span class="btn-value" id="lowValue">-- Hz</span>
-                        <div class="recording-ring" id="lowRecordingRing"></div>
+                
+                <!-- Action Buttons -->
+                <div class="calibrate-actions">
+                    <button id="resetCalibration" class="btn btn-secondary">
+                        <span>↻ RESET TO DEFAULTS</span>
                     </button>
-                    <button id="calibrateHigh" class="calibrate-btn high">
-                        <span class="btn-label">🎵 CALIBRATE HIGH</span>
-                        <span class="btn-value" id="highValue">-- Hz</span>
-                        <div class="recording-ring" id="highRecordingRing"></div>
-                    </button>
-                </div>
-                
-                <p class="calibrate-hint">
-                    Click a button and hold your pitch for 2 seconds.<br>
-                    Or drag the threshold markers to adjust manually.
-                </p>
-                
-                <div class="threshold-display">
-                    <div class="threshold-info low">
-                        <span class="label">Low Threshold:</span>
-                        <span class="value" id="lowThresholdValue">180 Hz</span>
-                    </div>
-                    <div class="threshold-info high">
-                        <span class="label">High Threshold:</span>
-                        <span class="value" id="highThresholdValue">280 Hz</span>
-                    </div>
+                    <a th:href="@{/singleplayer}" class="btn btn-primary">
+                        <span>🎮 PLAY GAME</span>
+                    </a>
                 </div>
             </div>
-            
-            <!-- Test Section -->
-            <div class="test-section-inline">
-                <div class="test-paddle-inline">
-                    <span class="test-label">TEST:</span>
-                    <div class="paddle-track horizontal">
-                        <div class="paddle-indicator" id="testPaddle"></div>
-                        <span class="track-label left">DOWN</span>
-                        <span class="track-label right">UP</span>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Action Buttons -->
-            <div class="calibrate-actions">
-                <button id="resetCalibration" class="btn btn-secondary">
-                    <span>↻ RESET TO DEFAULTS</span>
-                </button>
-                <a th:href="@{/singleplayer}" class="btn btn-primary">
-                    <span>🎮 PLAY GAME</span>
-                </a>
-            </div>
-        </div>
             <!-- Main Visualizer Section -->
             <div class="visualizer-section">
                 <div class="viz-row">

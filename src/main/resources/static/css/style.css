@@ -1472,6 +1472,85 @@ body {
 .paddle-track .track-label.left { left: -45px; }
 .paddle-track .track-label.right { right: -30px; }
 
+/* Test Paddle Sidebar */
+.calibrate-page {
+    position: relative;
+}
+
+.test-paddle-sidebar {
+    position: fixed;
+    left: 30px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    z-index: 100;
+}
+
+.test-paddle-track {
+    width: 20px;
+    height: 300px;
+    background: var(--bg-darker);
+    border: 2px solid var(--panel-border);
+    border-radius: 10px;
+    position: relative;
+    box-shadow: 
+        0 0 20px rgba(0, 245, 255, 0.1),
+        inset 0 0 30px rgba(0, 0, 0, 0.5);
+}
+
+.test-paddle {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 16px;
+    height: 60px;
+    background: linear-gradient(180deg, var(--neon-cyan) 0%, #0088aa 100%);
+    border-radius: 4px;
+    box-shadow: 
+        0 0 15px var(--neon-cyan),
+        0 0 30px rgba(0, 245, 255, 0.3);
+    /* No transition - animated via JavaScript like game paddle */
+}
+
+.test-paddle.high {
+    background: linear-gradient(180deg, var(--neon-green) 0%, #00aa66 100%);
+    box-shadow: 
+        0 0 15px var(--neon-green),
+        0 0 30px rgba(0, 255, 136, 0.3);
+}
+
+.test-paddle.low {
+    background: linear-gradient(180deg, var(--neon-red) 0%, #aa2244 100%);
+    box-shadow: 
+        0 0 15px var(--neon-red),
+        0 0 30px rgba(255, 51, 102, 0.3);
+}
+
+.test-paddle.medium {
+    background: linear-gradient(180deg, var(--neon-yellow) 0%, #aaaa00 100%);
+    box-shadow: 
+        0 0 15px var(--neon-yellow),
+        0 0 30px rgba(255, 255, 0, 0.3);
+}
+
+.test-paddle-label {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.5rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+/* Calibrate content wrapper */
+.calibrate-content {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
 /* Calibrate Actions */
 .calibrate-actions {
     display: flex;
@@ -1551,7 +1630,25 @@ body {
     }
 }
 
+@media (max-width: 900px) {
+    .test-paddle-sidebar {
+        left: 15px;
+    }
+    
+    .test-paddle-track {
+        height: 200px;
+    }
+    
+    .test-paddle {
+        height: 45px;
+    }
+}
+
 @media (max-width: 600px) {
+    .test-paddle-sidebar {
+        display: none;
+    }
+    
     .calibration-summary {
         flex-direction: column;
         gap: 15px;

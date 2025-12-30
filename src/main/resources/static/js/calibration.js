@@ -50,6 +50,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let recordingType = null;
     let recordedPitches = [];
     let currentFreq = 0;
+    let currentPitchState = 'OFF';
+    
+    // Test paddle state (like game paddle)
+    const TRACK_HEIGHT = 300; // matches CSS
+    const PADDLE_HEIGHT = 60; // matches CSS
+    const PADDLE_SPEED = 4;   // pixels per frame (similar to game)
+    let paddleY = TRACK_HEIGHT / 2; // center position
+    let animationRunning = false;
     
     // Load saved calibration
     loadCalibration();
@@ -58,6 +66,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Initialize visualizer and start immediately
     initVisualizer();
+    
+    // Start paddle animation loop
+    startPaddleAnimation();
     
     async function initVisualizer() {
         visualizer = new AudioVisualizer({
@@ -118,14 +129,41 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function updateTestPaddle(pitch) {
-        let position;
-        switch (pitch) {
-            case 'HIGH': position = 90; break;
-            case 'LOW': position = 10; break;
-            default: position = 50;
+        // Store current pitch state for animation loop
+        currentPitchState = pitch;
+        
+        // Update paddle color based on pitch
+        testPaddle.className = `test-paddle ${pitch.toLowerCase()}`;
+    }
+    
+    function startPaddleAnimation() {
+        if (animationRunning) return;
+        animationRunning = true;
+        
+        function animatePaddle() {
+            if (!animationRunning) return;
+            
+            // Calculate direction based on pitch
+            let direction = 0;
+            if (currentPitchState === 'HIGH') direction = -1; // Move up
+            else if (currentPitchState === 'LOW') direction = 1; // Move down
+            
+            // Update paddle position
+            paddleY += direction * PADDLE_SPEED;
+            
+            // Clamp to track bounds
+            const minY = PADDLE_HEIGHT / 2;
+            const maxY = TRACK_HEIGHT - PADDLE_HEIGHT / 2;
+            paddleY = Math.max(minY, Math.min(maxY, paddleY));
+            
+            // Convert to percentage for CSS
+            const percentage = (paddleY / TRACK_HEIGHT) * 100;
+            testPaddle.style.top = `${percentage}%`;
+            
+            requestAnimationFrame(animatePaddle);
         }
-        testPaddle.style.left = `${position}%`;
-        testPaddle.className = `paddle-indicator ${pitch.toLowerCase()}`;
+        
+        animatePaddle();
     }
     
     // Frequency to percentage conversion
