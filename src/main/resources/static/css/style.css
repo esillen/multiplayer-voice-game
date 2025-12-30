@@ -2202,3 +2202,40 @@ body {
     }
 }
 
+/* Space Invaders Page */
+.spaceinvaders-page .game-header {
+    margin-bottom: 20px;
+}
+
+.score-display {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.8rem;
+    color: var(--neon-cyan);
+    text-shadow: 0 0 10px var(--neon-cyan);
+}
+
+.score-display span {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.score-display span span {
+    color: var(--neon-yellow);
+    text-shadow: 0 0 10px var(--neon-yellow);
+}
+
+.spaceinvaders-page .game-canvas-container {
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.spaceinvaders-page .zone-label.mid {
+    font-weight: bold;
+    color: var(--neon-yellow);
+    text-shadow: 0 0 8px var(--neon-yellow);
+}
+

@@ -57,4 +57,9 @@ class GameController(
     fun singleplayer(): String {
         return "singleplayer"
     }
+
+    @GetMapping("/spaceinvaders")
+    fun spaceinvaders(): String {
+        return "spaceinvaders"
+    }
 }
