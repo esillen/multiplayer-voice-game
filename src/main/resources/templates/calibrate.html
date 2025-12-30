@@ -101,6 +101,98 @@
                         <span>🎮 PLAY GAME</span>
                     </a>
                 </div>
+                
+                <!-- Advanced Settings Tab -->
+                <div class="advanced-section">
+                    <button class="advanced-toggle" id="advancedToggle">
+                        <span class="toggle-icon">▶</span> Advanced Settings
+                    </button>
+                    
+                    <div class="advanced-panel" id="advancedPanel">
+                        <div class="advanced-grid">
+                            <!-- YIN Algorithm Settings -->
+                            <div class="setting-group">
+                                <h4>Detection Sensitivity</h4>
+                                
+                                <div class="setting-row">
+                                    <label for="yinThreshold">YIN Threshold</label>
+                                    <input type="range" id="yinThreshold" min="0.05" max="0.3" step="0.01" value="0.15">
+                                    <span class="setting-value" id="yinThresholdVal">0.15</span>
+                                </div>
+                                <p class="setting-desc">Lower = stricter pitch detection, higher = more lenient</p>
+                                
+                                <div class="setting-row">
+                                    <label for="probabilityThreshold">Confidence Threshold</label>
+                                    <input type="range" id="probabilityThreshold" min="0.3" max="0.95" step="0.05" value="0.70">
+                                    <span class="setting-value" id="probabilityThresholdVal">0.70</span>
+                                </div>
+                                <p class="setting-desc">Minimum confidence to accept a pitch reading</p>
+                                
+                                <div class="setting-row">
+                                    <label for="volumeThreshold">Volume Threshold</label>
+                                    <input type="range" id="volumeThreshold" min="0.005" max="0.05" step="0.001" value="0.015">
+                                    <span class="setting-value" id="volumeThresholdVal">0.015</span>
+                                </div>
+                                <p class="setting-desc">Minimum volume to detect voice (vs silence)</p>
+                            </div>
+                            
+                            <!-- Frequency Range -->
+                            <div class="setting-group">
+                                <h4>Frequency Range</h4>
+                                
+                                <div class="setting-row">
+                                    <label for="minFrequency">Min Frequency (Hz)</label>
+                                    <input type="range" id="minFrequency" min="50" max="150" step="5" value="70">
+                                    <span class="setting-value" id="minFrequencyVal">70</span>
+                                </div>
+                                <p class="setting-desc">Lowest detectable pitch (bass voices ~80Hz)</p>
+                                
+                                <div class="setting-row">
+                                    <label for="maxFrequency">Max Frequency (Hz)</label>
+                                    <input type="range" id="maxFrequency" min="300" max="800" step="10" value="500">
+                                    <span class="setting-value" id="maxFrequencyVal">500</span>
+                                </div>
+                                <p class="setting-desc">Highest detectable pitch (soprano ~500Hz)</p>
+                            </div>
+                            
+                            <!-- Smoothing Settings -->
+                            <div class="setting-group">
+                                <h4>Smoothing &amp; Stability</h4>
+                                
+                                <div class="setting-row">
+                                    <label for="smoothingAlpha">Smoothing Factor</label>
+                                    <input type="range" id="smoothingAlpha" min="0.1" max="0.9" step="0.05" value="0.50">
+                                    <span class="setting-value" id="smoothingAlphaVal">0.50</span>
+                                </div>
+                                <p class="setting-desc">Higher = more responsive, lower = smoother</p>
+                                
+                                <div class="setting-row">
+                                    <label for="medianFilterSize">Median Filter Size</label>
+                                    <input type="range" id="medianFilterSize" min="3" max="9" step="2" value="5">
+                                    <span class="setting-value" id="medianFilterSizeVal">5</span>
+                                </div>
+                                <p class="setting-desc">Frames used for median filtering (odd numbers)</p>
+                                
+                                <div class="setting-row">
+                                    <label for="stabilityFrames">Stability Frames</label>
+                                    <input type="range" id="stabilityFrames" min="1" max="5" step="1" value="1">
+                                    <span class="setting-value" id="stabilityFramesVal">1</span>
+                                </div>
+                                <p class="setting-desc">Consistent readings needed before pitch change</p>
+                            </div>
+                            
+                        </div>
+                        
+                        <div class="advanced-actions">
+                            <button id="resetAdvanced" class="btn btn-secondary btn-sm">
+                                <span>↻ Reset to Defaults</span>
+                            </button>
+                            <button id="saveAdvanced" class="btn btn-primary btn-sm">
+                                <span>💾 Save Settings</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
             <!-- Main Visualizer Section -->
             <div class="visualizer-section">

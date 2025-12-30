@@ -47,7 +47,7 @@ class AudioVisualizer {
         // Smoothing
         this.medianFilterSize = 5;
         this.frequencyHistory = [];
-        this.exponentialAlpha = 0.35;
+        this.exponentialAlpha = 0.5; // More responsive
         this.lastSmoothedFrequency = 0;
         
         // Callbacks
@@ -433,13 +433,11 @@ class AudioVisualizer {
         } else {
             const ratio = medianFrequency / this.lastSmoothedFrequency;
             
-            // Correct octave errors
-            if (ratio > 1.8 && ratio < 2.2) {
-                this.lastSmoothedFrequency = this.exponentialAlpha * (medianFrequency / 2) + 
-                                            (1 - this.exponentialAlpha) * this.lastSmoothedFrequency;
-            } else if (ratio > 0.45 && ratio < 0.55) {
-                this.lastSmoothedFrequency = this.exponentialAlpha * (medianFrequency * 2) + 
-                                            (1 - this.exponentialAlpha) * this.lastSmoothedFrequency;
+            // Only correct exact octave errors
+            if (ratio > 1.9 && ratio < 2.1) {
+                this.lastSmoothedFrequency = medianFrequency / 2;
+            } else if (ratio > 0.47 && ratio < 0.53) {
+                this.lastSmoothedFrequency = medianFrequency * 2;
             } else {
                 this.lastSmoothedFrequency = this.exponentialAlpha * medianFrequency + 
                                             (1 - this.exponentialAlpha) * this.lastSmoothedFrequency;

@@ -45,12 +45,12 @@ class PitchDetector {
         // Smoothing and stability
         this.medianFilterSize = 5; // Odd number for median filter
         this.frequencyHistory = [];
-        this.exponentialAlpha = 0.3; // For exponential smoothing (0-1, lower = smoother)
+        this.exponentialAlpha = 0.5; // For exponential smoothing (0-1, higher = more responsive)
         this.lastSmoothedFrequency = 0;
         
         // Pitch stability (require consistent readings)
         this.stablePitchCount = 0;
-        this.stablePitchThreshold = 2; // Frames needed before changing pitch
+        this.stablePitchThreshold = 1; // Reduced since jump detection handles transitions
         this.pendingPitch = null;
         
         this.currentPitch = 'OFF';
@@ -322,10 +322,9 @@ class PitchDetector {
     }
     
     /**
-     * Apply smoothing using median filter + exponential smoothing
+     * Apply median filter + exponential smoothing
      */
     applySmoothing(frequency) {
-        // Add to history
         this.frequencyHistory.push(frequency);
         
         // Keep history limited
@@ -344,23 +343,18 @@ class PitchDetector {
         const medianIndex = Math.floor(sorted.length / 2);
         const medianFrequency = sorted[medianIndex];
         
-        // Apply exponential smoothing on top of median
+        // Apply exponential smoothing with octave error correction
         if (this.lastSmoothedFrequency === 0) {
             this.lastSmoothedFrequency = medianFrequency;
         } else {
-            // Check for large jumps (octave errors)
             const ratio = medianFrequency / this.lastSmoothedFrequency;
             
-            if (ratio > 1.8 && ratio < 2.2) {
-                // Likely octave error up - halve it
-                this.lastSmoothedFrequency = this.exponentialAlpha * (medianFrequency / 2) + 
-                                            (1 - this.exponentialAlpha) * this.lastSmoothedFrequency;
-            } else if (ratio > 0.45 && ratio < 0.55) {
-                // Likely octave error down - double it
-                this.lastSmoothedFrequency = this.exponentialAlpha * (medianFrequency * 2) + 
-                                            (1 - this.exponentialAlpha) * this.lastSmoothedFrequency;
+            // Only correct exact octave errors
+            if (ratio > 1.9 && ratio < 2.1) {
+                this.lastSmoothedFrequency = medianFrequency / 2;
+            } else if (ratio > 0.47 && ratio < 0.53) {
+                this.lastSmoothedFrequency = medianFrequency * 2;
             } else {
-                // Normal smoothing
                 this.lastSmoothedFrequency = this.exponentialAlpha * medianFrequency + 
                                             (1 - this.exponentialAlpha) * this.lastSmoothedFrequency;
             }

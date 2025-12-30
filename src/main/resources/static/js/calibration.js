@@ -363,4 +363,164 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Failed to load calibration:', e);
         }
     }
+    
+    // ============================================
+    // ADVANCED SETTINGS
+    // ============================================
+    
+    const advancedToggle = document.getElementById('advancedToggle');
+    const advancedPanel = document.getElementById('advancedPanel');
+    const resetAdvancedBtn = document.getElementById('resetAdvanced');
+    const saveAdvancedBtn = document.getElementById('saveAdvanced');
+    
+    // Default advanced settings
+    const DEFAULT_ADVANCED = {
+        yinThreshold: 0.15,
+        probabilityThreshold: 0.70,
+        volumeThreshold: 0.015,
+        minFrequency: 70,
+        maxFrequency: 500,
+        smoothingAlpha: 0.50,
+        medianFilterSize: 5,
+        stabilityFrames: 1
+    };
+    
+    let advancedSettings = { ...DEFAULT_ADVANCED };
+    
+    // Advanced setting elements
+    const advancedInputs = {
+        yinThreshold: document.getElementById('yinThreshold'),
+        probabilityThreshold: document.getElementById('probabilityThreshold'),
+        volumeThreshold: document.getElementById('volumeThreshold'),
+        minFrequency: document.getElementById('minFrequency'),
+        maxFrequency: document.getElementById('maxFrequency'),
+        smoothingAlpha: document.getElementById('smoothingAlpha'),
+        medianFilterSize: document.getElementById('medianFilterSize'),
+        stabilityFrames: document.getElementById('stabilityFrames')
+    };
+    
+    const advancedValues = {
+        yinThreshold: document.getElementById('yinThresholdVal'),
+        probabilityThreshold: document.getElementById('probabilityThresholdVal'),
+        volumeThreshold: document.getElementById('volumeThresholdVal'),
+        minFrequency: document.getElementById('minFrequencyVal'),
+        maxFrequency: document.getElementById('maxFrequencyVal'),
+        smoothingAlpha: document.getElementById('smoothingAlphaVal'),
+        medianFilterSize: document.getElementById('medianFilterSizeVal'),
+        stabilityFrames: document.getElementById('stabilityFramesVal')
+    };
+    
+    // Toggle advanced panel
+    advancedToggle.addEventListener('click', () => {
+        advancedToggle.classList.toggle('open');
+        advancedPanel.classList.toggle('open');
+    });
+    
+    // Load advanced settings
+    function loadAdvancedSettings() {
+        try {
+            const saved = localStorage.getItem('voiceAdvancedSettings');
+            if (saved) {
+                const data = JSON.parse(saved);
+                advancedSettings = { ...DEFAULT_ADVANCED, ...data };
+            }
+        } catch (e) {
+            console.error('Failed to load advanced settings:', e);
+        }
+        
+        // Update UI
+        updateAdvancedUI();
+    }
+    
+    // Save advanced settings
+    function saveAdvancedSettings() {
+        localStorage.setItem('voiceAdvancedSettings', JSON.stringify(advancedSettings));
+        applyAdvancedSettings();
+        console.log('Advanced settings saved:', advancedSettings);
+    }
+    
+    // Update UI from settings
+    function updateAdvancedUI() {
+        for (const [key, input] of Object.entries(advancedInputs)) {
+            if (input && advancedSettings[key] !== undefined) {
+                input.value = advancedSettings[key];
+                if (advancedValues[key]) {
+                    advancedValues[key].textContent = formatSettingValue(key, advancedSettings[key]);
+                }
+            }
+        }
+    }
+    
+    // Format display values
+    function formatSettingValue(key, value) {
+        if (key === 'minFrequency' || key === 'maxFrequency') {
+            return Math.round(value);
+        }
+        if (key === 'medianFilterSize' || key === 'stabilityFrames' || key === 'jumpConfirmFrames') {
+            return Math.round(value);
+        }
+        return value.toFixed(2);
+    }
+    
+    // Apply settings to visualizer
+    function applyAdvancedSettings() {
+        if (!visualizer) return;
+        
+        // Apply all settings to the visualizer
+        visualizer.yinThreshold = advancedSettings.yinThreshold;
+        visualizer.probabilityThreshold = advancedSettings.probabilityThreshold;
+        visualizer.volumeThreshold = advancedSettings.volumeThreshold;
+        visualizer.minFrequency = advancedSettings.minFrequency;
+        visualizer.maxFrequency = advancedSettings.maxFrequency;
+        visualizer.exponentialAlpha = advancedSettings.smoothingAlpha;
+        visualizer.medianFilterSize = advancedSettings.medianFilterSize;
+        
+        // Clear history when settings change to avoid stale data
+        visualizer.frequencyHistory = [];
+        visualizer.lastSmoothedFrequency = 0;
+        
+        console.log('Applied advanced settings to visualizer');
+    }
+    
+    // Set up slider event listeners
+    for (const [key, input] of Object.entries(advancedInputs)) {
+        if (input) {
+            input.addEventListener('input', () => {
+                const value = parseFloat(input.value);
+                advancedSettings[key] = value;
+                if (advancedValues[key]) {
+                    advancedValues[key].textContent = formatSettingValue(key, value);
+                }
+            });
+        }
+    }
+    
+    // Reset advanced settings
+    resetAdvancedBtn.addEventListener('click', () => {
+        advancedSettings = { ...DEFAULT_ADVANCED };
+        updateAdvancedUI();
+        saveAdvancedSettings();
+    });
+    
+    // Save button
+    saveAdvancedBtn.addEventListener('click', () => {
+        saveAdvancedSettings();
+        
+        // Visual feedback
+        saveAdvancedBtn.querySelector('span').textContent = '✓ Saved!';
+        setTimeout(() => {
+            saveAdvancedBtn.querySelector('span').textContent = '💾 Save Settings';
+        }, 1500);
+    });
+    
+    // Initialize advanced settings
+    loadAdvancedSettings();
+    
+    // Apply settings once visualizer is ready
+    const applyOnceReady = setInterval(() => {
+        if (visualizer && visualizer.isRunning) {
+            applyAdvancedSettings();
+            clearInterval(applyOnceReady);
+        }
+    }, 100);
 });
