@@ -27,10 +27,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const canvas = document.getElementById('gameCanvas');
     const gameOverlay = document.getElementById('gameOverlay');
     const overlayContent = document.getElementById('overlayContent');
-    const micStatus = document.getElementById('micStatus');
-    const micText = micStatus.querySelector('.mic-text');
-    const pitchLevel = document.getElementById('pitchLevel');
-    const pitchLabel = document.getElementById('pitchLabel');
     const readyBtn = document.getElementById('readyBtn');
     const leftPlayerName = document.getElementById('leftPlayerName');
     const rightPlayerName = document.getElementById('rightPlayerName');
@@ -40,12 +36,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const rightReady = document.getElementById('rightReady');
     const gameStatus = document.getElementById('gameStatus');
     
+    // Pitch meter elements
+    const pitchMeterBar = document.getElementById('pitchMeterBar');
+    const pitchMarker = document.getElementById('pitchMarker');
+    const highThresholdEl = document.getElementById('highThreshold');
+    const lowThresholdEl = document.getElementById('lowThreshold');
+    const lowZoneFill = document.getElementById('lowZoneFill');
+    const highZoneFill = document.getElementById('highZoneFill');
+    const currentFrequencyEl = document.getElementById('currentFrequency');
+    const currentPitchLabel = document.getElementById('currentPitchLabel');
+    
+    // Constants
+    const MIN_FREQ = 60;
+    const MAX_FREQ = 500;
+    
     // Initialize components
     const renderer = new GameRenderer(canvas);
     let pitchDetector = null;
     let currentPitch = 'OFF';
     let isReady = false;
     let gameState = null;
+    
+    // Load calibration for threshold display
+    let calibrationData = loadCalibration();
+    updateThresholdPositions();
     
     // Initialize WebSocket
     const ws = new GameWebSocket({
@@ -73,11 +87,14 @@ document.addEventListener('DOMContentLoaded', () => {
             updateUI(state);
             renderer.render(state);
             
-            // Handle overlay visibility based on game status
             if (state.status === 'PLAYING') {
                 hideOverlay();
             } else if (state.status === 'FINISHED') {
                 showOverlay(`${state.winner} WINS!`, 'Game over!', true);
+            } else if (state.status === 'WAITING') {
+                updateOverlayForWaiting();
+            } else if (state.status === 'READY_CHECK') {
+                updateOverlayForReadyCheck();
             }
         },
         
@@ -108,41 +125,49 @@ document.addEventListener('DOMContentLoaded', () => {
     // Connect WebSocket
     ws.connect();
     
-    // Microphone button handler
-    micStatus.addEventListener('click', async () => {
-        if (pitchDetector && pitchDetector.isRunning) {
-            // Stop pitch detection
-            pitchDetector.stop();
-            micStatus.classList.remove('active');
-            micText.textContent = 'Click to enable microphone';
-            pitchLabel.textContent = 'OFF';
-            pitchLabel.className = 'pitch-label';
-            pitchLevel.style.height = '0%';
-            currentPitch = 'OFF';
-            ws.sendPitch('OFF');
-        } else {
-            // Start pitch detection
-            pitchDetector = new PitchDetector({
-                onPitchChange: (pitch) => {
-                    currentPitch = pitch;
-                    pitchLabel.textContent = pitch;
-                    pitchLabel.className = 'pitch-label ' + pitch.toLowerCase();
-                    ws.sendPitch(pitch);
-                },
-                onVolumeChange: (volume) => {
-                    pitchLevel.style.height = (volume * 100) + '%';
-                }
-            });
-            
-            const success = await pitchDetector.start();
-            if (success) {
-                micStatus.classList.add('active');
-                micText.textContent = 'Microphone active';
-            } else {
-                alert('Failed to access microphone. Please allow microphone access and try again.');
+    // Auto-start microphone
+    startMicrophone();
+    
+    async function startMicrophone() {
+        pitchDetector = new PitchDetector({
+            onPitchChange: (pitch) => {
+                currentPitch = pitch;
+                ws.sendPitch(pitch);
+                updatePitchDisplay(pitch);
+            },
+            onVolumeChange: (volume) => {
+                // Volume indicator in marker brightness
+            },
+            onFrequencyDetected: (frequency, probability) => {
+                updateFrequencyDisplay(frequency, probability);
             }
+        });
+        
+        const success = await pitchDetector.start();
+        if (!success) {
+            showOverlay('Microphone Required', 'Please allow microphone access and reload the page.');
         }
-    });
+    }
+    
+    function updatePitchDisplay(pitch) {
+        currentPitchLabel.textContent = pitch;
+        currentPitchLabel.className = 'pitch-state ' + pitch.toLowerCase();
+    }
+    
+    function updateFrequencyDisplay(frequency, probability) {
+        if (frequency > 0) {
+            const confidenceStr = probability ? ` (${Math.round(probability * 100)}%)` : '';
+            currentFrequencyEl.textContent = `${Math.round(frequency)} Hz${confidenceStr}`;
+            
+            // Update pitch marker position
+            const position = freqToPercent(frequency);
+            pitchMarker.style.left = `${position}%`;
+            pitchMarker.classList.add('active');
+        } else {
+            currentFrequencyEl.textContent = '-- Hz';
+            pitchMarker.classList.remove('active');
+        }
+    }
     
     // Ready button handler
     readyBtn.addEventListener('click', () => {
@@ -155,53 +180,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    // Keyboard controls (fallback)
-    let keyboardPitch = 'OFF';
-    
-    document.addEventListener('keydown', (e) => {
-        let newPitch = keyboardPitch;
-        
-        if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') {
-            newPitch = 'HIGH';
-        } else if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') {
-            newPitch = 'LOW';
-        }
-        
-        if (newPitch !== keyboardPitch) {
-            keyboardPitch = newPitch;
-            // Only use keyboard if mic is not active
-            if (!pitchDetector || !pitchDetector.isRunning) {
-                ws.sendPitch(newPitch);
-                pitchLabel.textContent = newPitch;
-                pitchLabel.className = 'pitch-label ' + newPitch.toLowerCase();
-            }
-        }
-    });
-    
-    document.addEventListener('keyup', (e) => {
-        if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp' ||
-            e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') {
-            keyboardPitch = 'OFF';
-            // Only use keyboard if mic is not active
-            if (!pitchDetector || !pitchDetector.isRunning) {
-                ws.sendPitch('OFF');
-                pitchLabel.textContent = 'OFF';
-                pitchLabel.className = 'pitch-label';
-            }
-        }
-    });
-    
     // UI update function
     function updateUI(state) {
-        // Player names
         leftPlayerName.textContent = state.leftPlayerName || 'Waiting...';
         rightPlayerName.textContent = state.rightPlayerName || 'Waiting...';
         
-        // Scores
         leftScore.textContent = state.leftScore;
         rightScore.textContent = state.rightScore;
         
-        // Ready indicators
         if (state.leftPlayerReady) {
             leftReady.textContent = 'READY';
             leftReady.classList.add('ready');
@@ -218,7 +204,6 @@ document.addEventListener('DOMContentLoaded', () => {
             rightReady.classList.remove('ready');
         }
         
-        // Game status
         const statusMessages = {
             'WAITING': 'WAITING FOR PLAYERS',
             'READY_CHECK': 'WAITING FOR READY',
@@ -236,6 +221,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <p>${message}</p>
             ${isWinner ? '<button class="btn btn-primary" onclick="window.location.href=\'/join\'">Play Again</button>' : ''}
         `;
+        readyBtn.style.display = isWinner ? 'none' : 'inline-flex';
         gameOverlay.classList.remove('hidden');
     }
     
@@ -243,7 +229,134 @@ document.addEventListener('DOMContentLoaded', () => {
         gameOverlay.classList.add('hidden');
     }
     
+    function updateOverlayForWaiting() {
+        overlayContent.innerHTML = `
+            <h2>Waiting for opponent...</h2>
+            <p>Share this link with a friend!</p>
+        `;
+        readyBtn.style.display = 'none';
+        gameOverlay.classList.remove('hidden');
+    }
+    
+    function updateOverlayForReadyCheck() {
+        overlayContent.innerHTML = `
+            <h2>Both players connected!</h2>
+            <p>Click the button when you're ready to play</p>
+        `;
+        readyBtn.style.display = 'inline-flex';
+        gameOverlay.classList.remove('hidden');
+    }
+    
+    // ============================================
+    // PITCH THRESHOLD BAR
+    // ============================================
+    
+    function freqToPercent(freq) {
+        return Math.min(100, Math.max(0, ((freq - MIN_FREQ) / (MAX_FREQ - MIN_FREQ)) * 100));
+    }
+    
+    function percentToFreq(percent) {
+        return MIN_FREQ + (percent / 100) * (MAX_FREQ - MIN_FREQ);
+    }
+    
+    function loadCalibration() {
+        const defaults = { lowThreshold: 180, highThreshold: 280 };
+        try {
+            const saved = localStorage.getItem('voiceCalibration');
+            if (saved) {
+                const data = JSON.parse(saved);
+                return {
+                    lowThreshold: data.lowThreshold || defaults.lowThreshold,
+                    highThreshold: data.highThreshold || defaults.highThreshold
+                };
+            }
+        } catch (e) {
+            console.error('Failed to load calibration:', e);
+        }
+        return defaults;
+    }
+    
+    function saveCalibration() {
+        localStorage.setItem('voiceCalibration', JSON.stringify({
+            lowThreshold: calibrationData.lowThreshold,
+            highThreshold: calibrationData.highThreshold,
+            calibratedAt: new Date().toISOString()
+        }));
+        
+        // Update pitch detector thresholds
+        if (pitchDetector) {
+            pitchDetector.setThresholds(calibrationData.lowThreshold, calibrationData.highThreshold);
+        }
+    }
+    
+    function updateThresholdPositions() {
+        const lowPos = freqToPercent(calibrationData.lowThreshold);
+        const highPos = freqToPercent(calibrationData.highThreshold);
+        
+        lowThresholdEl.style.left = `${lowPos}%`;
+        highThresholdEl.style.left = `${highPos}%`;
+        
+        lowZoneFill.style.width = `${lowPos}%`;
+        highZoneFill.style.left = `${highPos}%`;
+        highZoneFill.style.width = `${100 - highPos}%`;
+    }
+    
+    // Drag and drop for threshold markers
+    let draggedMarker = null;
+    let dragType = null;
+    
+    function handleDragStart(e, type) {
+        draggedMarker = e.target.closest('.threshold-marker');
+        dragType = type;
+        draggedMarker.classList.add('dragging');
+        if (e.type === 'touchstart') e.preventDefault();
+    }
+    
+    function handleDrag(e) {
+        if (!draggedMarker) return;
+        e.preventDefault();
+        
+        const rect = pitchMeterBar.getBoundingClientRect();
+        const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+        let percent = ((clientX - rect.left) / rect.width) * 100;
+        percent = Math.min(100, Math.max(0, percent));
+        
+        const freq = percentToFreq(percent);
+        
+        if (dragType === 'low') {
+            if (freq < calibrationData.highThreshold - 20) {
+                calibrationData.lowThreshold = Math.round(freq);
+            }
+        } else {
+            if (freq > calibrationData.lowThreshold + 20) {
+                calibrationData.highThreshold = Math.round(freq);
+            }
+        }
+        
+        updateThresholdPositions();
+    }
+    
+    function handleDragEnd() {
+        if (draggedMarker) {
+            draggedMarker.classList.remove('dragging');
+            saveCalibration();
+        }
+        draggedMarker = null;
+        dragType = null;
+    }
+    
+    // Mouse events
+    lowThresholdEl.addEventListener('mousedown', (e) => handleDragStart(e, 'low'));
+    highThresholdEl.addEventListener('mousedown', (e) => handleDragStart(e, 'high'));
+    document.addEventListener('mousemove', handleDrag);
+    document.addEventListener('mouseup', handleDragEnd);
+    
+    // Touch events
+    lowThresholdEl.addEventListener('touchstart', (e) => handleDragStart(e, 'low'));
+    highThresholdEl.addEventListener('touchstart', (e) => handleDragStart(e, 'high'));
+    document.addEventListener('touchmove', handleDrag, { passive: false });
+    document.addEventListener('touchend', handleDragEnd);
+    
     // Initial render
     renderer.renderWaiting('CONNECTING...');
 });
-

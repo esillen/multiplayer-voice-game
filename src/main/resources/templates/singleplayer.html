@@ -50,26 +50,43 @@
             </div>
             
             <div class="controls-section">
-                <div class="voice-indicator">
-                    <div class="mic-status" id="micStatus">
-                        <span class="mic-icon">🎤</span>
-                        <span class="mic-text">Click to enable microphone</span>
-                    </div>
-                    <div class="pitch-display">
-                        <div class="pitch-bar">
-                            <div class="pitch-level" id="pitchLevel"></div>
-                        </div>
-                        <span class="pitch-label" id="pitchLabel">OFF</span>
-                    </div>
-                </div>
-                
                 <button id="pauseBtn" class="btn btn-secondary" style="display: none;">
                     <span>⏸️ PAUSE</span>
                 </button>
             </div>
             
-            <div class="keyboard-hint">
-                <p>🎹 Keyboard fallback: <kbd>W</kbd> / <kbd>↑</kbd> = UP | <kbd>S</kbd> / <kbd>↓</kbd> = DOWN</p>
+            <!-- Pitch Threshold Bar -->
+            <div class="pitch-meter-section game-pitch-meter">
+                <div class="pitch-meter-container">
+                    <div class="pitch-scale">
+                        <span>60 Hz</span>
+                        <span>200 Hz</span>
+                        <span>350 Hz</span>
+                        <span>500 Hz</span>
+                    </div>
+                    <div class="pitch-meter-bar" id="pitchMeterBar">
+                        <div class="pitch-marker" id="pitchMarker"></div>
+                        <div class="threshold-marker high-threshold" id="highThreshold" draggable="true">
+                            <div class="threshold-handle"></div>
+                            <span class="threshold-label">HIGH</span>
+                        </div>
+                        <div class="threshold-marker low-threshold" id="lowThreshold" draggable="true">
+                            <div class="threshold-handle"></div>
+                            <span class="threshold-label">LOW</span>
+                        </div>
+                        <div class="zone-fill low-zone-fill" id="lowZoneFill"></div>
+                        <div class="zone-fill high-zone-fill" id="highZoneFill"></div>
+                    </div>
+                    <div class="zone-labels">
+                        <span class="zone-label low">LOW</span>
+                        <span class="zone-label mid">MEDIUM</span>
+                        <span class="zone-label high">HIGH</span>
+                    </div>
+                </div>
+                <div class="current-pitch">
+                    <span id="currentFrequency">-- Hz</span>
+                    <span id="currentPitchLabel" class="pitch-state">WAITING</span>
+                </div>
             </div>
         </main>
         

@@ -683,8 +683,10 @@ body {
     height: 100%;
     background: rgba(10, 10, 15, 0.9);
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 20px;
     border-radius: 10px;
     transition: opacity 0.3s ease;
 }
@@ -696,7 +698,32 @@ body {
 
 .overlay-content {
     text-align: center;
-    padding: 40px;
+    padding: 20px 40px;
+}
+
+/* Ready button in overlay */
+.game-overlay .btn-ready {
+    animation: pulse-ready 1.5s infinite;
+}
+
+.game-overlay .btn-ready:disabled {
+    animation: none;
+    opacity: 0.5;
+}
+
+.game-overlay .btn-ready.pressed {
+    animation: none;
+    background: var(--neon-green);
+    color: var(--bg-dark);
+}
+
+@keyframes pulse-ready {
+    0%, 100% {
+        box-shadow: 0 0 20px rgba(0, 245, 255, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 40px rgba(0, 245, 255, 0.8), 0 0 60px rgba(0, 245, 255, 0.4);
+    }
 }
 
 .overlay-content h2 {
@@ -1179,6 +1206,23 @@ body {
 /* Interactive Calibration */
 .pitch-meter-section {
     margin-top: 20px;
+}
+
+/* Game page pitch meter - more compact */
+.game-pitch-meter {
+    margin-top: 15px;
+    padding: 15px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+}
+
+.game-pitch-meter .pitch-meter-container {
+    margin-bottom: 10px;
+}
+
+.game-pitch-meter .current-pitch {
+    margin-top: 10px;
 }
 
 .pitch-meter-section h3 {
