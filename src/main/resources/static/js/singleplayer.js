@@ -77,9 +77,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const hint = document.createElement('div');
         hint.className = 'calibrate-prompt';
         hint.innerHTML = `
-            <span>⚠️ Voice not calibrated</span>
+            <span>Voice not calibrated</span>
             <a href="/calibrate">Calibrate now</a>
-            <button class="dismiss-btn">✕</button>
+            <button class="dismiss-btn">X</button>
         `;
         document.body.appendChild(hint);
         hint.querySelector('.dismiss-btn').addEventListener('click', () => hint.remove());
@@ -182,14 +182,14 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function pauseGame() {
         gameState.status = 'PAUSED';
-        pauseBtn.querySelector('span').textContent = '▶️ RESUME';
+        pauseBtn.querySelector('span').textContent = 'RESUME';
         gameStatusEl.textContent = 'PAUSED';
         showOverlay('PAUSED', 'Press ESC or click Resume to continue');
     }
     
     function resumeGame() {
         gameState.status = 'PLAYING';
-        pauseBtn.querySelector('span').textContent = '⏸️ PAUSE';
+        pauseBtn.querySelector('span').textContent = 'PAUSE';
         gameStatusEl.textContent = 'GAME ON!';
         hideOverlay();
     }
@@ -200,7 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
         pauseBtn.style.display = 'none';
         
         const isPlayerWin = winner === 'player';
-        const message = isPlayerWin ? '🎉 YOU WIN!' : '🤖 CPU WINS';
+        const message = isPlayerWin ? 'YOU WIN!' : 'CPU WINS';
         const submessage = isPlayerWin 
             ? 'Congratulations! You beat the AI!' 
             : 'Better luck next time!';
@@ -369,10 +369,10 @@ document.addEventListener('DOMContentLoaded', () => {
             ${isGameOver ? `
                 <div class="game-over-buttons">
                     <button class="btn btn-primary" onclick="location.reload()">
-                        <span>🔄 PLAY AGAIN</span>
+                        <span>PLAY AGAIN</span>
                     </button>
                     <a href="/join" class="btn btn-secondary">
-                        <span>👥 MULTIPLAYER</span>
+                        <span>MULTIPLAYER</span>
                     </a>
                 </div>
             ` : ''}

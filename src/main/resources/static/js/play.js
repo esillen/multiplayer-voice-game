@@ -8,9 +8,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const calibratePrompt = document.createElement('div');
         calibratePrompt.className = 'calibrate-prompt';
         calibratePrompt.innerHTML = `
-            <span>⚠️ Voice not calibrated</span>
+            <span>Voice not calibrated</span>
             <a href="/calibrate">Calibrate now</a>
-            <button class="dismiss-btn">✕</button>
+            <button class="dismiss-btn">X</button>
         `;
         document.body.appendChild(calibratePrompt);
         

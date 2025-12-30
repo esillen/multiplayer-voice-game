@@ -57,13 +57,13 @@
                 </div>
                 
                 <button type="submit" class="btn btn-primary btn-large">
-                    <span class="btn-icon">🎮</span>
+                    <span class="btn-icon"></span>
                     <span>ENTER GAME</span>
                 </button>
             </form>
             
             <div class="join-info" th:if="${leftTaken and rightTaken}">
-                <p class="warning">⚠️ Both sides are taken! You can <a th:href="@{/spectate}">spectate</a> instead.</p>
+                <p class="warning">Both sides are taken! You can <a th:href="@{/spectate}">spectate</a> instead.</p>
             </div>
         </main>
         

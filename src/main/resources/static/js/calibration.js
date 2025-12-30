@@ -507,9 +507,9 @@ document.addEventListener('DOMContentLoaded', () => {
         saveAdvancedSettings();
         
         // Visual feedback
-        saveAdvancedBtn.querySelector('span').textContent = '✓ Saved!';
+        saveAdvancedBtn.querySelector('span').textContent = 'Saved!';
         setTimeout(() => {
-            saveAdvancedBtn.querySelector('span').textContent = '💾 Save Settings';
+            saveAdvancedBtn.querySelector('span').textContent = 'Save Settings';
         }, 1500);
     });
     
