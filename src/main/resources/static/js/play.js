@@ -22,6 +22,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Get player info from hidden fields
     const playerName = document.getElementById('playerName').value;
     const playerSide = document.getElementById('playerSide').value;
+    const courtId = parseInt(document.getElementById('courtId').value) || 1;
+    const visualSeed = parseInt(document.getElementById('visualSeed').value) || 0;
     
     // DOM elements
     const canvas = document.getElementById('gameCanvas');
@@ -51,7 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const MAX_FREQ = 500;
     
     // Initialize components
-    const renderer = new GameRenderer(canvas);
+    const renderer = new GameRenderer(canvas, visualSeed);
     let pitchDetector = null;
     let currentPitch = 'OFF';
     let isReady = false;
@@ -64,17 +66,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize WebSocket
     const ws = new GameWebSocket({
         onConnected: () => {
-            console.log('Connected, joining game as', playerName, playerSide);
-            ws.join(playerName, playerSide);
+            console.log('Connected, joining court', courtId, 'as', playerName, playerSide);
+            ws.join(playerName, playerSide, courtId);
         },
         
         onDisconnected: () => {
             showOverlay('Disconnected', 'Attempting to reconnect...');
         },
         
-        onJoinResult: (success, playerId, error) => {
+        onJoinResult: (success, playerId, error, joinedCourtId) => {
             if (success) {
-                console.log('Joined game with ID:', playerId);
+                console.log('Joined court', joinedCourtId, 'with ID:', playerId);
                 readyBtn.disabled = false;
             } else {
                 console.error('Failed to join:', error);
@@ -82,7 +84,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
         
-        onStateUpdate: (state) => {
+        onStateUpdate: (state, stateCourtId) => {
+            // Only process updates for our court
+            if (stateCourtId !== courtId) return;
+            
             gameState = state;
             updateUI(state);
             renderer.render(state);
@@ -107,22 +112,48 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
         
-        onPlayerJoined: (name, side) => {
+        onPlayerJoined: (name, side, eventCourtId) => {
+            if (eventCourtId !== courtId) return;
             console.log('Player joined:', name, side);
         },
         
-        onPlayerLeft: (name, side) => {
+        onPlayerLeft: (name, side, eventCourtId) => {
+            if (eventCourtId !== courtId) return;
             console.log('Player left:', name, side);
             showOverlay('Player Disconnected', `${name} has left the game`);
         },
         
-        onPlayerReady: (name, side) => {
+        onPlayerReady: (name, side, eventCourtId) => {
+            if (eventCourtId !== courtId) return;
             console.log('Player ready:', name, side);
         },
         
-        onGameOver: (winner) => {
+        onGameOver: (winner, eventCourtId) => {
+            if (eventCourtId !== courtId) return;
             console.log('Game over! Winner:', winner);
             // Overlay handled by onStateUpdate for walkover support
+        },
+        
+        onGameFinished: (message) => {
+            console.log('Game finished:', message);
+            // Don't override the overlay - onStateUpdate already shows it with the button
+            // Just ensure the button is there if overlay is already showing
+            setTimeout(() => {
+                const joinBtn = document.getElementById('joinAnotherCourtBtn');
+                if (!joinBtn && gameState && gameState.status === 'FINISHED') {
+                    // If button is missing but game is finished, re-show overlay
+                    const isWinner = gameState.winner === playerName;
+                    if (gameState.walkover) {
+                        if (isWinner) {
+                            showOverlay('YOU WIN!', 'Victory by walkover - opponent left the game', true);
+                        } else {
+                            showOverlay(`${gameState.winner} WINS!`, 'Victory by walkover', true);
+                        }
+                    } else {
+                        showOverlay(`${gameState.winner} WINS!`, 'Game over!', true);
+                    }
+                }
+            }, 100);
         },
         
         onError: (message) => {
@@ -225,13 +256,37 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Overlay functions
     function showOverlay(title, message, isWinner = false) {
+        const hasButton = isWinner;
         overlayContent.innerHTML = `
             <h2 ${isWinner ? 'class="winner-text"' : ''}>${title}</h2>
             <p>${message}</p>
-            ${isWinner ? '<button class="btn btn-primary" onclick="window.location.href=\'/join\'">Play Again</button>' : ''}
+            ${hasButton ? '<button id="joinAnotherCourtBtn" class="btn btn-primary" style="cursor: pointer; margin-top: 20px;">Join Another Court</button>' : ''}
         `;
         readyBtn.style.display = isWinner ? 'none' : 'inline-flex';
         gameOverlay.classList.remove('hidden');
+        
+        // Add event listener for the button if it exists
+        if (hasButton) {
+            // Use requestAnimationFrame to ensure DOM is updated
+            requestAnimationFrame(() => {
+                const joinBtn = document.getElementById('joinAnotherCourtBtn');
+                if (joinBtn) {
+                    // Remove any existing listeners
+                    const newBtn = joinBtn.cloneNode(true);
+                    joinBtn.parentNode.replaceChild(newBtn, joinBtn);
+                    
+                    // Add click handler
+                    newBtn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log('Join Another Court button clicked');
+                        window.location.href = '/join';
+                    });
+                } else {
+                    console.error('Join Another Court button not found in DOM');
+                }
+            });
+        }
     }
     
     function hideOverlay() {

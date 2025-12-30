@@ -8,13 +8,16 @@ class GameWebSocket {
         this.onPlayerLeft = options.onPlayerLeft || (() => {});
         this.onPlayerReady = options.onPlayerReady || (() => {});
         this.onGameOver = options.onGameOver || (() => {});
+        this.onGameFinished = options.onGameFinished || (() => {});
         this.onError = options.onError || (() => {});
         this.onConnected = options.onConnected || (() => {});
         this.onDisconnected = options.onDisconnected || (() => {});
         this.onJoinResult = options.onJoinResult || (() => {});
+        this.onCourtSummaries = options.onCourtSummaries || (() => {});
         
         this.socket = null;
         this.playerId = null;
+        this.courtId = null;
         this.isConnected = false;
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 5;
@@ -68,32 +71,43 @@ class GameWebSocket {
             case 'joinResult':
                 if (message.success) {
                     this.playerId = message.playerId;
+                    this.courtId = message.courtId;
                 }
-                this.onJoinResult(message.success, message.playerId, message.error);
+                this.onJoinResult(message.success, message.playerId, message.error, message.courtId);
                 break;
                 
             case 'spectateResult':
-                this.onJoinResult(message.success, message.spectatorId, null);
+                this.courtId = message.courtId;
+                this.onJoinResult(message.success, message.spectatorId, message.error, message.courtId);
                 break;
                 
             case 'stateUpdate':
-                this.onStateUpdate(message.state);
+                this.onStateUpdate(message.state, message.courtId);
                 break;
                 
             case 'playerJoined':
-                this.onPlayerJoined(message.name, message.side);
+                this.onPlayerJoined(message.name, message.side, message.courtId);
                 break;
                 
             case 'playerLeft':
-                this.onPlayerLeft(message.name, message.side);
+                this.onPlayerLeft(message.name, message.side, message.courtId);
                 break;
                 
             case 'playerReady':
-                this.onPlayerReady(message.name, message.side);
+                this.onPlayerReady(message.name, message.side, message.courtId);
                 break;
                 
             case 'gameOver':
-                this.onGameOver(message.winner);
+                this.onGameOver(message.winner, message.courtId);
+                break;
+                
+            case 'gameFinished':
+                // Game ended, player will be disconnected
+                this.onGameFinished(message.message);
+                break;
+                
+            case 'courtSummaries':
+                this.onCourtSummaries(message.courts);
                 break;
                 
             case 'error':
@@ -113,17 +127,31 @@ class GameWebSocket {
         }
     }
     
-    join(name, side) {
+    join(name, side, courtId = 1) {
         this.send({
             type: 'join',
             name: name,
-            side: side
+            side: side,
+            courtId: courtId
         });
     }
     
-    spectate() {
+    spectate(courtId = 1) {
         this.send({
-            type: 'spectate'
+            type: 'spectate',
+            courtId: courtId
+        });
+    }
+    
+    joinLobby() {
+        this.send({
+            type: 'lobby'
+        });
+    }
+    
+    leaveLobby() {
+        this.send({
+            type: 'leaveLobby'
         });
     }
     
@@ -149,4 +177,3 @@ class GameWebSocket {
 
 // Export for use
 window.GameWebSocket = GameWebSocket;
-

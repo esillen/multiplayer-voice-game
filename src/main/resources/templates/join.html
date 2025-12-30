@@ -1,78 +1,98 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="en">
-<head th:replace="~{fragments/header :: head('Voice Pong - Join Game')}"></head>
+<head th:replace="~{fragments/header :: head('Voice Pong - Choose Court')}"></head>
 <body>
     <div class="scanlines"></div>
     <div class="container">
         <header th:replace="~{fragments/header :: navbar}"></header>
         
-        <main class="join-page">
-            <h1 class="page-title">JOIN GAME</h1>
+        <main class="lobby-page">
+            <h1 class="page-title">MULTIPLAYER</h1>
             
-            <form id="joinForm" class="join-form">
-                <div class="form-group">
-                    <label for="playerName">ENTER YOUR NAME</label>
-                    <input type="text" id="playerName" name="name" 
-                           required maxlength="12" placeholder="PLAYER 1"
-                           autocomplete="off">
-                </div>
-                
-                <div class="form-group">
-                    <label>CLICK A PADDLE TO JOIN</label>
-                    <div class="side-selector">
-                        <label class="side-option" th:classappend="${leftTaken} ? 'disabled' : ''">
-                            <input type="radio" name="side" value="LEFT" 
-                                   th:disabled="${leftTaken}" required>
-                            <div class="side-card">
-                                <div class="side-visual left-side">
-                                    <div class="mini-paddle"></div>
-                                </div>
-                                <span class="side-label">LEFT PADDLE</span>
-                                <span class="side-status" th:if="${leftTaken}">
-                                    Taken by <span th:text="${leftPlayerName}">Player</span>
-                                </span>
-                                <span class="side-status available" th:unless="${leftTaken}">
-                                    Available
-                                </span>
-                            </div>
-                        </label>
-                        
-                        <label class="side-option" th:classappend="${rightTaken} ? 'disabled' : ''">
-                            <input type="radio" name="side" value="RIGHT"
-                                   th:disabled="${rightTaken}" required>
-                            <div class="side-card">
-                                <div class="side-visual right-side">
-                                    <div class="mini-paddle"></div>
-                                </div>
-                                <span class="side-label">RIGHT PADDLE</span>
-                                <span class="side-status" th:if="${rightTaken}">
-                                    Taken by <span th:text="${rightPlayerName}">Player</span>
-                                </span>
-                                <span class="side-status available" th:unless="${rightTaken}">
-                                    Available
-                                </span>
-                            </div>
-                        </label>
-                    </div>
-                </div>
-                
+            <div class="name-entry">
+                <label for="playerName">YOUR NAME</label>
+                <input type="text" id="playerName" name="name" 
+                       required maxlength="12" placeholder="PLAYER"
+                       autocomplete="off">
                 <div id="nameError" class="name-error" style="display: none;">
                     Please enter your name first
                 </div>
-            </form>
+            </div>
             
-            <div class="join-info" th:if="${leftTaken and rightTaken}">
-                <p class="warning">Both sides are taken! You can <a th:href="@{/spectate}">spectate</a> instead.</p>
+            <h2 class="section-title">SELECT A COURT</h2>
+            
+            <div class="courts-grid" id="courtsGrid">
+                <!-- Courts will be populated by JavaScript for real-time updates -->
+                <div th:each="court : ${courts}" th:attr="data-court-id=${court.courtId}" 
+                     class="court-card" th:classappend="${court.status == 'PLAYING'} ? 'in-progress' : ''">
+                    
+                    <!-- Court visual preview with unique variation -->
+                    <div class="court-preview" th:attr="data-seed=${court.visualSeed}">
+                        <canvas class="court-canvas" width="160" height="100"></canvas>
+                        <div class="court-number" th:text="'COURT ' + ${court.courtId}"></div>
+                    </div>
+                    
+                    <div class="court-status">
+                        <span class="status-badge" 
+                              th:classappend="${court.status == 'PLAYING'} ? 'playing' : (${court.status == 'READY_CHECK'} ? 'ready' : 'waiting')"
+                              th:text="${court.status == 'PLAYING'} ? 'IN GAME' : (${court.status == 'READY_CHECK'} ? 'STARTING' : 'OPEN')">
+                        </span>
+                    </div>
+                    
+                    <div class="court-players">
+                        <div class="paddle-slot left" 
+                             th:classappend="${court.leftPlayerName != null} ? 'taken' : 'available'"
+                             data-side="LEFT">
+                            <div class="paddle-icon"></div>
+                            <span class="slot-label">LEFT</span>
+                            <span class="player-name" th:if="${court.leftPlayerName != null}" 
+                                  th:text="${court.leftPlayerName}"></span>
+                            <span class="player-name available" th:unless="${court.leftPlayerName != null}">
+                                Open
+                            </span>
+                            <span class="ready-dot" th:if="${court.leftPlayerReady}"></span>
+                        </div>
+                        
+                        <div class="court-score-section">
+                            <span class="vs-text">VS</span>
+                            <div class="court-score" th:if="${court.status == 'PLAYING' or court.status == 'FINISHED'}">
+                                <span class="score-value" th:text="${court.leftScore}">0</span>
+                                <span class="score-separator">-</span>
+                                <span class="score-value" th:text="${court.rightScore}">0</span>
+                            </div>
+                        </div>
+                        
+                        <div class="paddle-slot right" 
+                             th:classappend="${court.rightPlayerName != null} ? 'taken' : 'available'"
+                             data-side="RIGHT">
+                            <div class="paddle-icon"></div>
+                            <span class="slot-label">RIGHT</span>
+                            <span class="player-name" th:if="${court.rightPlayerName != null}" 
+                                  th:text="${court.rightPlayerName}"></span>
+                            <span class="player-name available" th:unless="${court.rightPlayerName != null}">
+                                Open
+                            </span>
+                            <span class="ready-dot" th:if="${court.rightPlayerReady}"></span>
+                        </div>
+                    </div>
+                    
+                    <div class="court-actions">
+                        <button class="btn btn-spectate" th:attr="data-court=${court.courtId}">
+                            SPECTATE
+                        </button>
+                    </div>
+                </div>
             </div>
         </main>
         
         <footer th:replace="~{fragments/footer :: footer}"></footer>
     </div>
     
+    <script th:src="@{/js/websocket.js}"></script>
     <script>
         const nameInput = document.getElementById('playerName');
         const nameError = document.getElementById('nameError');
-        const sideOptions = document.querySelectorAll('.side-option:not(.disabled)');
+        const courtsGrid = document.getElementById('courtsGrid');
         
         // Load saved name from localStorage
         const savedName = localStorage.getItem('playerName');
@@ -80,15 +100,117 @@
             nameInput.value = savedName;
         }
         
-        // Save name as user types
+        // Hide error when typing
         nameInput.addEventListener('input', () => {
             nameError.style.display = 'none';
         });
         
-        // Click on side card to join immediately
-        sideOptions.forEach(option => {
-            option.addEventListener('click', function(e) {
-                e.preventDefault();
+        // Connect to WebSocket for real-time court updates
+        const ws = new GameWebSocket({
+            onConnected: () => {
+                console.log('Connected to lobby');
+                ws.joinLobby();
+            },
+            onCourtSummaries: (courts) => {
+                updateCourtsDisplay(courts);
+            }
+        });
+        ws.connect();
+        
+        function updateCourtsDisplay(courts) {
+            courts.forEach(court => {
+                const card = document.querySelector(`[data-court-id="${court.courtId}"]`);
+                if (!card) return;
+                
+                // Update status
+                const statusBadge = card.querySelector('.status-badge');
+                statusBadge.className = 'status-badge';
+                if (court.status === 'PLAYING') {
+                    statusBadge.classList.add('playing');
+                    statusBadge.textContent = 'IN GAME';
+                    card.classList.add('in-progress');
+                } else if (court.status === 'READY_CHECK') {
+                    statusBadge.classList.add('ready');
+                    statusBadge.textContent = 'STARTING';
+                    card.classList.remove('in-progress');
+                } else {
+                    statusBadge.classList.add('waiting');
+                    statusBadge.textContent = 'OPEN';
+                    card.classList.remove('in-progress');
+                }
+                
+                // Update left paddle
+                const leftSlot = card.querySelector('.paddle-slot.left');
+                leftSlot.classList.toggle('taken', court.leftPlayerName != null);
+                leftSlot.classList.toggle('available', court.leftPlayerName == null);
+                const leftName = leftSlot.querySelector('.player-name');
+                if (court.leftPlayerName) {
+                    leftName.textContent = court.leftPlayerName;
+                    leftName.classList.remove('available');
+                } else {
+                    leftName.textContent = 'Open';
+                    leftName.classList.add('available');
+                }
+                const leftReady = leftSlot.querySelector('.ready-dot');
+                if (leftReady) leftReady.style.display = court.leftPlayerReady ? 'block' : 'none';
+                else if (court.leftPlayerReady) {
+                    const dot = document.createElement('span');
+                    dot.className = 'ready-dot';
+                    leftSlot.appendChild(dot);
+                }
+                
+                // Update right paddle
+                const rightSlot = card.querySelector('.paddle-slot.right');
+                rightSlot.classList.toggle('taken', court.rightPlayerName != null);
+                rightSlot.classList.toggle('available', court.rightPlayerName == null);
+                const rightName = rightSlot.querySelector('.player-name');
+                if (court.rightPlayerName) {
+                    rightName.textContent = court.rightPlayerName;
+                    rightName.classList.remove('available');
+                } else {
+                    rightName.textContent = 'Open';
+                    rightName.classList.add('available');
+                }
+                const rightReady = rightSlot.querySelector('.ready-dot');
+                if (rightReady) rightReady.style.display = court.rightPlayerReady ? 'block' : 'none';
+                else if (court.rightPlayerReady) {
+                    const dot = document.createElement('span');
+                    dot.className = 'ready-dot';
+                    rightSlot.appendChild(dot);
+                }
+                
+                // Update scores
+                const scoreSection = card.querySelector('.court-score-section');
+                if (scoreSection) {
+                    let scoreDisplay = scoreSection.querySelector('.court-score');
+                    if (court.status === 'PLAYING' || court.status === 'FINISHED') {
+                        if (!scoreDisplay) {
+                            scoreDisplay = document.createElement('div');
+                            scoreDisplay.className = 'court-score';
+                            scoreDisplay.innerHTML = `
+                                <span class="score-value">0</span>
+                                <span class="score-separator">-</span>
+                                <span class="score-value">0</span>
+                            `;
+                            scoreSection.appendChild(scoreDisplay);
+                        }
+                        const scoreValues = scoreDisplay.querySelectorAll('.score-value');
+                        if (scoreValues.length >= 2) {
+                            scoreValues[0].textContent = court.leftScore || 0;
+                            scoreValues[1].textContent = court.rightScore || 0;
+                        }
+                        scoreDisplay.style.display = 'flex';
+                    } else if (scoreDisplay) {
+                        scoreDisplay.style.display = 'none';
+                    }
+                }
+            });
+        }
+        
+        // Click on paddle slot to join
+        document.querySelectorAll('.paddle-slot').forEach(slot => {
+            slot.addEventListener('click', function() {
+                if (this.classList.contains('taken')) return;
                 
                 const name = nameInput.value.trim();
                 if (!name) {
@@ -97,37 +219,89 @@
                     return;
                 }
                 
-                const radio = this.querySelector('input[type="radio"]');
-                if (radio && !radio.disabled) {
-                    // Save name to localStorage
-                    localStorage.setItem('playerName', name);
-                    
-                    // Navigate to game
-                    window.location.href = '/play?name=' + encodeURIComponent(name) + '&side=' + radio.value;
-                }
+                const courtId = this.closest('.court-card').dataset.courtId;
+                const side = this.dataset.side;
+                
+                // Save name
+                localStorage.setItem('playerName', name);
+                
+                // Navigate to game
+                window.location.href = `/play?name=${encodeURIComponent(name)}&side=${side}&court=${courtId}`;
             });
         });
         
-        // Also handle form submit (enter key)
-        document.getElementById('joinForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const name = nameInput.value.trim();
-            const side = document.querySelector('input[name="side"]:checked');
+        // Click spectate button
+        document.querySelectorAll('.btn-spectate').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const courtId = this.dataset.court;
+                window.location.href = `/spectate?court=${courtId}`;
+            });
+        });
+        
+        // Draw court previews with visual variations
+        document.querySelectorAll('.court-preview').forEach(preview => {
+            const canvas = preview.querySelector('.court-canvas');
+            const seed = parseInt(preview.dataset.seed) || 0;
+            drawCourtPreview(canvas, seed);
+        });
+        
+        function drawCourtPreview(canvas, seed) {
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width;
+            const h = canvas.height;
             
-            if (!name) {
-                nameError.style.display = 'block';
-                nameInput.focus();
-                return;
-            }
-            if (!side) {
-                // Focus on selecting a side
-                return;
+            // Seeded random function
+            function seededRandom() {
+                seed = (seed * 9301 + 49297) % 233280;
+                return seed / 233280;
             }
             
-            localStorage.setItem('playerName', name);
-            window.location.href = '/play?name=' + encodeURIComponent(name) + '&side=' + side.value;
+            // Base dark background
+            ctx.fillStyle = '#0a0a12';
+            ctx.fillRect(0, 0, w, h);
+            
+            // Subtle variation: random tiny dots/specks
+            const dotCount = 5 + Math.floor(seededRandom() * 10);
+            for (let i = 0; i < dotCount; i++) {
+                const x = seededRandom() * w;
+                const y = seededRandom() * h;
+                const alpha = 0.03 + seededRandom() * 0.05;
+                ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                ctx.beginPath();
+                ctx.arc(x, y, 1 + seededRandom() * 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // Court border
+            ctx.strokeStyle = 'rgba(0, 255, 255, 0.3)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(2, 2, w - 4, h - 4);
+            
+            // Center line
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(w / 2, 0);
+            ctx.lineTo(w / 2, h);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            
+            // Paddles
+            ctx.fillStyle = '#00ffff';
+            ctx.fillRect(8, h/2 - 15, 4, 30);
+            ctx.fillRect(w - 12, h/2 - 15, 4, 30);
+            
+            // Ball
+            ctx.beginPath();
+            ctx.arc(w/2, h/2, 4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        // Cleanup on page leave
+        window.addEventListener('beforeunload', () => {
+            ws.leaveLobby();
+            ws.disconnect();
         });
     </script>
 </body>
 </html>
-

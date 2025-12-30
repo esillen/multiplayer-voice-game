@@ -7,6 +7,10 @@
         <header th:replace="~{fragments/header :: navbar}"></header>
         
         <main class="game-page">
+            <div class="court-indicator">
+                <span th:text="'COURT ' + ${courtId}">COURT 1</span>
+            </div>
+            
             <div class="game-header">
                 <div class="player-info left-player">
                     <span class="player-name" id="leftPlayerName">Waiting...</span>
@@ -25,7 +29,7 @@
                 </div>
             </div>
             
-            <div class="game-canvas-container">
+            <div class="game-canvas-container" th:attr="data-visual-seed=${visualSeed}">
                 <canvas id="gameCanvas" width="800" height="500"></canvas>
                 
                 <div id="gameOverlay" class="game-overlay">
@@ -79,6 +83,8 @@
     
     <input type="hidden" id="playerName" th:value="${playerName}">
     <input type="hidden" id="playerSide" th:value="${playerSide}">
+    <input type="hidden" id="courtId" th:value="${courtId}">
+    <input type="hidden" id="visualSeed" th:value="${visualSeed}">
     
     <script th:src="@{/js/pitch-detector.js}"></script>
     <script th:src="@{/js/game-renderer.js}"></script>
@@ -86,4 +92,3 @@
     <script th:src="@{/js/play.js}"></script>
 </body>
 </html>
-

@@ -11,6 +11,10 @@
                 <span>SPECTATING</span>
             </div>
             
+            <div class="court-indicator">
+                <span th:text="'COURT ' + ${courtId}">COURT 1</span>
+            </div>
+            
             <div class="game-header">
                 <div class="player-info left-player">
                     <span class="player-name" id="leftPlayerName">Waiting...</span>
@@ -29,7 +33,7 @@
                 </div>
             </div>
             
-            <div class="game-canvas-container">
+            <div class="game-canvas-container" th:attr="data-visual-seed=${visualSeed}">
                 <canvas id="gameCanvas" width="800" height="500"></canvas>
                 
                 <div id="gameOverlay" class="game-overlay">
@@ -48,9 +52,11 @@
         <footer th:replace="~{fragments/footer :: footer}"></footer>
     </div>
     
+    <input type="hidden" id="courtId" th:value="${courtId}">
+    <input type="hidden" id="visualSeed" th:value="${visualSeed}">
+    
     <script th:src="@{/js/game-renderer.js}"></script>
     <script th:src="@{/js/websocket.js}"></script>
     <script th:src="@{/js/spectate.js}"></script>
 </body>
 </html>
-

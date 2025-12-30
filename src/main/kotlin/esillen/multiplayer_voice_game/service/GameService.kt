@@ -1,315 +1,151 @@
 package esillen.multiplayer_voice_game.service
 
 import esillen.multiplayer_voice_game.model.*
-import esillen.multiplayer_voice_game.model.GameState.Companion.BALL_SIZE
-import esillen.multiplayer_voice_game.model.GameState.Companion.CANVAS_HEIGHT
-import esillen.multiplayer_voice_game.model.GameState.Companion.CANVAS_WIDTH
-import esillen.multiplayer_voice_game.model.GameState.Companion.PADDLE_HEIGHT
-import esillen.multiplayer_voice_game.model.GameState.Companion.PADDLE_MARGIN
-import esillen.multiplayer_voice_game.model.GameState.Companion.PADDLE_SPEED
-import esillen.multiplayer_voice_game.model.GameState.Companion.PADDLE_WIDTH
-import esillen.multiplayer_voice_game.model.GameState.Companion.WINNING_SCORE
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import org.springframework.web.socket.WebSocketSession
-import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.math.abs
-import kotlin.math.sign
 
 @Service
 class GameService {
-
-    private val gameState = GameState()
-    private val players = ConcurrentHashMap<String, Player>()
-    private val spectators = ConcurrentHashMap<String, WebSocketSession>()
     
-    var onStateUpdate: ((GameStateDto) -> Unit)? = null
-    var onPlayerJoined: ((Player) -> Unit)? = null
-    var onPlayerLeft: ((Player) -> Unit)? = null
-    var onPlayerReady: ((Player) -> Unit)? = null
-    var onGameOver: ((String) -> Unit)? = null
-
-    fun joinGame(name: String, side: PaddleSide, session: WebSocketSession): Result<Player> {
-        // Check if side is already taken
-        val existingPlayer = players.values.find { it.side == side }
-        if (existingPlayer != null) {
-            return Result.failure(Exception("${side.name} paddle is already taken by ${existingPlayer.name}"))
-        }
-
-        val player = Player(
-            id = UUID.randomUUID().toString(),
-            name = name,
-            side = side,
-            session = session,
-            paddleY = CANVAS_HEIGHT / 2
-        )
-        players[player.id] = player
-
-        // Update game status
-        if (players.size == 2 && gameState.status == GameStatus.WAITING) {
-            gameState.status = GameStatus.READY_CHECK
-        }
-
-        onPlayerJoined?.invoke(player)
-        return Result.success(player)
+    companion object {
+        const val NUM_COURTS = 5
     }
 
-    fun addSpectator(session: WebSocketSession): String {
-        val id = UUID.randomUUID().toString()
-        spectators[id] = session
+    // Create 5 courts
+    private val courts = (1..NUM_COURTS).map { Court(it) }.associateBy { it.id }
+    
+    // Track which court each session belongs to
+    private val sessionToCourt = ConcurrentHashMap<WebSocketSession, Int>()
+    
+    // Callbacks for WebSocket broadcasts (now include courtId)
+    var onStateUpdate: ((Int, GameStateDto) -> Unit)? = null
+    var onPlayerJoined: ((Int, Player) -> Unit)? = null
+    var onPlayerLeft: ((Int, Player) -> Unit)? = null
+    var onPlayerReady: ((Int, Player) -> Unit)? = null
+    var onGameOver: ((Int, String) -> Unit)? = null
+    var onCourtUpdate: ((List<CourtSummaryDto>) -> Unit)? = null
+    var onDisconnectPlayers: ((Int, List<WebSocketSession>) -> Unit)? = null
+
+    fun getCourt(courtId: Int): Court? = courts[courtId]
+    
+    fun getAllCourts(): List<Court> = courts.values.toList()
+    
+    fun getAllCourtSummaries(): List<CourtSummaryDto> = courts.values.map { it.getCourtSummary() }
+
+    fun joinGame(courtId: Int, name: String, side: PaddleSide, session: WebSocketSession): Result<Player> {
+        val court = courts[courtId] 
+            ?: return Result.failure(Exception("Invalid court ID: $courtId"))
+            
+        val result = court.joinGame(name, side, session)
+        result.onSuccess { player ->
+            sessionToCourt[session] = courtId
+            onPlayerJoined?.invoke(courtId, player)
+            onCourtUpdate?.invoke(getAllCourtSummaries())
+        }
+        return result
+    }
+
+    fun addSpectator(courtId: Int, session: WebSocketSession): String? {
+        val court = courts[courtId] ?: return null
+        val id = court.addSpectator(session)
+        sessionToCourt[session] = courtId
+        onCourtUpdate?.invoke(getAllCourtSummaries())
         return id
     }
 
-    fun removeSpectator(id: String) {
-        spectators.remove(id)
+    fun removeSpectator(courtId: Int, id: String) {
+        courts[courtId]?.removeSpectator(id)
+        onCourtUpdate?.invoke(getAllCourtSummaries())
     }
 
-    fun playerReady(playerId: String) {
-        val player = players[playerId] ?: return
-        player.isReady = true
-        onPlayerReady?.invoke(player)
-
-        // Check if both players are ready
-        if (players.size == 2 && players.values.all { it.isReady }) {
-            startGame()
+    fun playerReady(courtId: Int, playerId: String) {
+        val court = courts[courtId] ?: return
+        val player = court.playerReady(playerId)
+        if (player != null) {
+            onPlayerReady?.invoke(courtId, player)
         }
     }
 
-    fun updatePitch(playerId: String, pitch: PitchState) {
-        val player = players[playerId] ?: return
-        player.pitchState = pitch
+    fun updatePitch(courtId: Int, playerId: String, pitch: PitchState) {
+        courts[courtId]?.updatePitch(playerId, pitch)
     }
 
     fun playerDisconnected(session: WebSocketSession) {
-        val player = players.values.find { it.session == session }
+        val courtId = sessionToCourt.remove(session) ?: return
+        val court = courts[courtId] ?: return
+        
+        val player = court.playerDisconnected(session)
         if (player != null) {
-            players.remove(player.id)
-            onPlayerLeft?.invoke(player)
+            onPlayerLeft?.invoke(courtId, player)
             
-            // If game was in progress, award victory to the remaining player
-            if (gameState.status == GameStatus.PLAYING) {
-                val remainingPlayer = players.values.firstOrNull()
-                if (remainingPlayer != null) {
-                    gameState.status = GameStatus.FINISHED
-                    gameState.winner = remainingPlayer.name
-                    gameState.walkover = true
-                    onGameOver?.invoke(remainingPlayer.name)
-                } else {
-                    // Both players left, reset game
-                    gameState.status = GameStatus.WAITING
-                }
-            } else {
-                gameState.status = GameStatus.WAITING
+            // Check for walkover win
+            if (court.gameState.walkover && court.gameState.winner != null) {
+                onGameOver?.invoke(courtId, court.gameState.winner!!)
             }
-        }
-
-        // Check spectators too
-        spectators.entries.find { it.value == session }?.let {
-            spectators.remove(it.key)
+            
+            onCourtUpdate?.invoke(getAllCourtSummaries())
         }
     }
 
-    fun getPlayer(playerId: String): Player? = players[playerId]
+    fun getCourtForSession(session: WebSocketSession): Int? = sessionToCourt[session]
 
-    fun getPlayerBySession(session: WebSocketSession): Player? =
-        players.values.find { it.session == session }
+    fun getPlayer(courtId: Int, playerId: String): Player? = courts[courtId]?.getPlayer(playerId)
 
-    fun isSpectator(session: WebSocketSession): Boolean =
-        spectators.values.any { it == session }
-
-    fun getAllSessions(): List<WebSocketSession> {
-        val sessions = mutableListOf<WebSocketSession>()
-        players.values.mapNotNull { it.session }.forEach { sessions.add(it) }
-        spectators.values.forEach { sessions.add(it) }
-        return sessions
+    fun getPlayerBySession(session: WebSocketSession): Pair<Int, Player>? {
+        val courtId = sessionToCourt[session] ?: return null
+        val court = courts[courtId] ?: return null
+        val player = court.getPlayerBySession(session) ?: return null
+        return Pair(courtId, player)
     }
 
-    fun getCurrentStateDto(): GameStateDto {
-        val leftPlayer = players.values.find { it.side == PaddleSide.LEFT }
-        val rightPlayer = players.values.find { it.side == PaddleSide.RIGHT }
-
-        return GameStateDto(
-            status = gameState.status.name,
-            leftScore = gameState.leftScore,
-            rightScore = gameState.rightScore,
-            ballX = gameState.ball.x,
-            ballY = gameState.ball.y,
-            leftPaddleY = gameState.leftPaddleY,
-            rightPaddleY = gameState.rightPaddleY,
-            leftPlayerName = leftPlayer?.name,
-            rightPlayerName = rightPlayer?.name,
-            leftPlayerReady = leftPlayer?.isReady ?: false,
-            rightPlayerReady = rightPlayer?.isReady ?: false,
-            winner = gameState.winner,
-            walkover = gameState.walkover
-        )
+    fun isSpectator(session: WebSocketSession): Boolean {
+        val courtId = sessionToCourt[session] ?: return false
+        return courts[courtId]?.isSpectator(session) ?: false
     }
 
-    private fun startGame() {
-        gameState.status = GameStatus.PLAYING
-        resetBall(towardsLeft = Math.random() > 0.5)
+    fun getAllSessionsForCourt(courtId: Int): List<WebSocketSession> {
+        return courts[courtId]?.getAllSessions() ?: emptyList()
     }
 
-    private fun resetBall(towardsLeft: Boolean) {
-        gameState.ball.x = CANVAS_WIDTH / 2
-        gameState.ball.y = CANVAS_HEIGHT / 2
-        val speed = 5.0
-        gameState.ball.velocityX = if (towardsLeft) -speed else speed
-        gameState.ball.velocityY = (Math.random() - 0.5) * 4
+    fun getCurrentStateDto(courtId: Int): GameStateDto? {
+        return courts[courtId]?.getCurrentStateDto()
     }
 
     @Scheduled(fixedRate = 16) // ~60fps
     fun gameLoop() {
-        if (gameState.status != GameStatus.PLAYING) {
-            // Still broadcast state for UI updates
-            onStateUpdate?.invoke(getCurrentStateDto())
-            return
-        }
-
-        updatePaddles()
-        updateBall()
-        checkCollisions()
-        checkScoring()
-
-        onStateUpdate?.invoke(getCurrentStateDto())
-    }
-
-    private fun updatePaddles() {
-        players.values.forEach { player ->
-            val direction = when (player.pitchState) {
-                PitchState.HIGH -> -1.0  // Up
-                PitchState.LOW -> 1.0    // Down
-                else -> 0.0
-            }
-
-            val newY = player.paddleY + (direction * PADDLE_SPEED)
-            player.paddleY = newY.coerceIn(PADDLE_HEIGHT / 2, CANVAS_HEIGHT - PADDLE_HEIGHT / 2)
-
-            // Update game state paddle positions
-            when (player.side) {
-                PaddleSide.LEFT -> gameState.leftPaddleY = player.paddleY
-                PaddleSide.RIGHT -> gameState.rightPaddleY = player.paddleY
-            }
-        }
-    }
-
-    private fun updateBall() {
-        gameState.ball.x += gameState.ball.velocityX
-        gameState.ball.y += gameState.ball.velocityY
-    }
-
-    private fun checkCollisions() {
-        val ball = gameState.ball
-
-        // Top/bottom wall collision
-        if (ball.y - BALL_SIZE / 2 <= 0 || ball.y + BALL_SIZE / 2 >= CANVAS_HEIGHT) {
-            ball.velocityY = -ball.velocityY
-            ball.y = ball.y.coerceIn(BALL_SIZE / 2, CANVAS_HEIGHT - BALL_SIZE / 2)
-        }
-
-        // Left paddle collision
-        val leftPaddleX = PADDLE_MARGIN
-        if (ball.x - BALL_SIZE / 2 <= leftPaddleX + PADDLE_WIDTH &&
-            ball.x + BALL_SIZE / 2 >= leftPaddleX &&
-            ball.velocityX < 0
-        ) {
-            val paddleTop = gameState.leftPaddleY - PADDLE_HEIGHT / 2
-            val paddleBottom = gameState.leftPaddleY + PADDLE_HEIGHT / 2
-            if (ball.y >= paddleTop && ball.y <= paddleBottom) {
-                ball.velocityX = -ball.velocityX * 1.05 // Slight speedup
+        courts.values.forEach { court ->
+            val wasPlaying = court.gameState.status == GameStatus.PLAYING
+            court.gameLoop()
+            
+            // Check if game just ended
+            if (wasPlaying && court.gameState.status == GameStatus.FINISHED && court.gameState.winner != null) {
+                onGameOver?.invoke(court.id, court.gameState.winner!!)
                 
-                // Adjust angle based on where ball hit paddle
-                val hitPos = (ball.y - gameState.leftPaddleY) / (PADDLE_HEIGHT / 2)
-                ball.velocityY = hitPos * 5
+                // Disconnect all players (they'll see final state on client before disconnect)
+                val playerSessions = court.disconnectAllPlayers()
+                playerSessions.forEach { session ->
+                    sessionToCourt.remove(session)
+                }
                 
-                ball.x = leftPaddleX + PADDLE_WIDTH + BALL_SIZE / 2
+                // Notify handler to close player WebSocket sessions
+                onDisconnectPlayers?.invoke(court.id, playerSessions)
+                
+                // Reset court to 0-0 immediately (final state saved for spectators)
+                court.resetGameAfterWin()
+                
+                // Notify court update for lobby
+                onCourtUpdate?.invoke(getAllCourtSummaries())
             }
-        }
-
-        // Right paddle collision
-        val rightPaddleX = CANVAS_WIDTH - PADDLE_MARGIN - PADDLE_WIDTH
-        if (ball.x + BALL_SIZE / 2 >= rightPaddleX &&
-            ball.x - BALL_SIZE / 2 <= rightPaddleX + PADDLE_WIDTH &&
-            ball.velocityX > 0
-        ) {
-            val paddleTop = gameState.rightPaddleY - PADDLE_HEIGHT / 2
-            val paddleBottom = gameState.rightPaddleY + PADDLE_HEIGHT / 2
-            if (ball.y >= paddleTop && ball.y <= paddleBottom) {
-                ball.velocityX = -ball.velocityX * 1.05 // Slight speedup
-                
-                // Adjust angle based on where ball hit paddle
-                val hitPos = (ball.y - gameState.rightPaddleY) / (PADDLE_HEIGHT / 2)
-                ball.velocityY = hitPos * 5
-                
-                ball.x = rightPaddleX - BALL_SIZE / 2
-            }
-        }
-
-        // Cap ball speed
-        val maxSpeed = 15.0
-        if (abs(ball.velocityX) > maxSpeed) {
-            ball.velocityX = maxSpeed * ball.velocityX.sign
-        }
-        if (abs(ball.velocityY) > maxSpeed) {
-            ball.velocityY = maxSpeed * ball.velocityY.sign
+            
+            // Broadcast state update for this court
+            onStateUpdate?.invoke(court.id, court.getCurrentStateDto())
         }
     }
 
-    private fun checkScoring() {
-        val ball = gameState.ball
-
-        // Ball went past left paddle
-        if (ball.x < 0) {
-            gameState.rightScore++
-            checkWinner()
-            if (gameState.status == GameStatus.PLAYING) {
-                resetBall(towardsLeft = true) // Give ball to scored-on player
-            }
-        }
-
-        // Ball went past right paddle
-        if (ball.x > CANVAS_WIDTH) {
-            gameState.leftScore++
-            checkWinner()
-            if (gameState.status == GameStatus.PLAYING) {
-                resetBall(towardsLeft = false) // Give ball to scored-on player
-            }
-        }
-    }
-
-    private fun checkWinner() {
-        val leftPlayer = players.values.find { it.side == PaddleSide.LEFT }
-        val rightPlayer = players.values.find { it.side == PaddleSide.RIGHT }
-
-        when {
-            gameState.leftScore >= WINNING_SCORE -> {
-                gameState.status = GameStatus.FINISHED
-                gameState.winner = leftPlayer?.name ?: "Left Player"
-                onGameOver?.invoke(gameState.winner!!)
-            }
-            gameState.rightScore >= WINNING_SCORE -> {
-                gameState.status = GameStatus.FINISHED
-                gameState.winner = rightPlayer?.name ?: "Right Player"
-                onGameOver?.invoke(gameState.winner!!)
-            }
-        }
-    }
-
-    fun resetGame() {
-        gameState.status = GameStatus.WAITING
-        gameState.leftScore = 0
-        gameState.rightScore = 0
-        gameState.winner = null
-        gameState.walkover = false
-        gameState.leftPaddleY = CANVAS_HEIGHT / 2
-        gameState.rightPaddleY = CANVAS_HEIGHT / 2
-        resetBall(towardsLeft = Math.random() > 0.5)
-        
-        players.values.forEach { 
-            it.isReady = false 
-            it.paddleY = CANVAS_HEIGHT / 2
-        }
+    fun resetGame(courtId: Int) {
+        courts[courtId]?.resetGame()
+        onCourtUpdate?.invoke(getAllCourtSummaries())
     }
 }
-

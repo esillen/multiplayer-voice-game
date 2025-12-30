@@ -3,6 +3,10 @@
  * View-only mode for watching the game
  */
 document.addEventListener('DOMContentLoaded', () => {
+    // Get court info
+    const courtId = parseInt(document.getElementById('courtId').value) || 1;
+    const visualSeed = parseInt(document.getElementById('visualSeed').value) || 0;
+    
     // DOM elements
     const canvas = document.getElementById('gameCanvas');
     const gameOverlay = document.getElementById('gameOverlay');
@@ -15,65 +19,78 @@ document.addEventListener('DOMContentLoaded', () => {
     const rightReady = document.getElementById('rightReady');
     const gameStatus = document.getElementById('gameStatus');
     
-    // Initialize renderer
-    const renderer = new GameRenderer(canvas);
+    // Initialize renderer with visual seed for court variations
+    const renderer = new GameRenderer(canvas, visualSeed);
     let gameState = null;
     
     // Initialize WebSocket
     const ws = new GameWebSocket({
         onConnected: () => {
-            console.log('Connected, joining as spectator');
-            ws.spectate();
+            console.log('Connected, spectating court', courtId);
+            ws.spectate(courtId);
         },
         
         onDisconnected: () => {
             showOverlay('Disconnected', 'Attempting to reconnect...');
         },
         
-        onJoinResult: (success, spectatorId, error) => {
+        onJoinResult: (success, spectatorId, error, joinedCourtId) => {
             if (success) {
-                console.log('Spectating with ID:', spectatorId);
+                console.log('Spectating court', joinedCourtId, 'with ID:', spectatorId);
             } else {
                 console.error('Failed to spectate:', error);
             }
         },
         
-        onStateUpdate: (state) => {
+        onStateUpdate: (state, stateCourtId) => {
+            // Only process updates for our court
+            if (stateCourtId !== courtId) return;
+            
             gameState = state;
             updateUI(state);
-            renderer.render(state);
             
             // Handle overlay visibility
             if (state.status === 'PLAYING') {
                 hideOverlay();
+                renderer.render(state);
             } else if (state.status === 'FINISHED') {
+                // Show final state - keep rendering final game state
+                renderer.render(state);
                 if (state.walkover) {
                     showOverlay(`${state.winner} WINS!`, 'Victory by walkover - opponent left the game', true);
                 } else {
-                    showOverlay(`${state.winner} WINS!`, 'Game over!', true);
+                    showOverlay(`${state.winner} WINS!`, 'Game over! Waiting for new players...', true);
                 }
             } else if (state.status === 'WAITING') {
+                // New players joined, court reset
+                renderer.render(state);
                 showOverlay('Waiting for Players', 'The game will start when two players join and ready up!');
             } else if (state.status === 'READY_CHECK') {
+                renderer.render(state);
                 showOverlay('Players Joined', 'Waiting for both players to ready up...');
             } else if (state.status === 'PAUSED') {
+                renderer.render(state);
                 showOverlay('Game Paused', 'A player has disconnected');
             }
         },
         
-        onPlayerJoined: (name, side) => {
+        onPlayerJoined: (name, side, eventCourtId) => {
+            if (eventCourtId !== courtId) return;
             console.log('Player joined:', name, side);
         },
         
-        onPlayerLeft: (name, side) => {
+        onPlayerLeft: (name, side, eventCourtId) => {
+            if (eventCourtId !== courtId) return;
             console.log('Player left:', name, side);
         },
         
-        onPlayerReady: (name, side) => {
+        onPlayerReady: (name, side, eventCourtId) => {
+            if (eventCourtId !== courtId) return;
             console.log('Player ready:', name, side);
         },
         
-        onGameOver: (winner) => {
+        onGameOver: (winner, eventCourtId) => {
+            if (eventCourtId !== courtId) return;
             console.log('Game over! Winner:', winner);
             // Overlay handled by onStateUpdate for walkover support
         },
@@ -140,4 +157,3 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initial render
     renderer.renderWaiting('CONNECTING...');
 });
-

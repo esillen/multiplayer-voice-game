@@ -3,9 +3,10 @@
  * Handles canvas drawing for the game
  */
 class GameRenderer {
-    constructor(canvas) {
+    constructor(canvas, visualSeed = 0) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
+        this.visualSeed = visualSeed;
         
         // Game dimensions (match server constants)
         this.width = 800;
@@ -28,10 +29,98 @@ class GameRenderer {
         // Trail effect for ball
         this.ballTrail = [];
         this.maxTrailLength = 8;
+        
+        // Generate subtle visual variations based on seed
+        this.variations = this.generateVariations();
+    }
+    
+    // Seeded random number generator
+    seededRandom() {
+        this.visualSeed = (this.visualSeed * 9301 + 49297) % 233280;
+        return this.visualSeed / 233280;
+    }
+    
+    generateVariations() {
+        // Reset seed to get consistent results
+        const originalSeed = this.visualSeed;
+        
+        // Generate dots/specks
+        const dots = [];
+        const dotCount = 3 + Math.floor(this.seededRandom() * 8);
+        for (let i = 0; i < dotCount; i++) {
+            dots.push({
+                x: this.seededRandom() * this.width,
+                y: this.seededRandom() * this.height,
+                size: 1 + this.seededRandom() * 2,
+                alpha: 0.02 + this.seededRandom() * 0.04
+            });
+        }
+        
+        // Generate very subtle scratches/lines
+        const scratches = [];
+        const scratchCount = Math.floor(this.seededRandom() * 3);
+        for (let i = 0; i < scratchCount; i++) {
+            scratches.push({
+                x1: this.seededRandom() * this.width,
+                y1: this.seededRandom() * this.height,
+                x2: this.seededRandom() * this.width,
+                y2: this.seededRandom() * this.height,
+                alpha: 0.01 + this.seededRandom() * 0.02
+            });
+        }
+        
+        // Slight corner accent (very subtle)
+        const cornerAccent = {
+            corner: Math.floor(this.seededRandom() * 4), // 0: TL, 1: TR, 2: BL, 3: BR
+            alpha: 0.02 + this.seededRandom() * 0.03
+        };
+        
+        // Reset seed
+        this.visualSeed = originalSeed;
+        
+        return { dots, scratches, cornerAccent };
     }
     
     clear() {
         this.ctx.fillStyle = this.colors.background;
+        this.ctx.fillRect(0, 0, this.width, this.height);
+        
+        // Draw subtle variations
+        this.drawVariations();
+    }
+    
+    drawVariations() {
+        // Draw dots
+        for (const dot of this.variations.dots) {
+            this.ctx.fillStyle = `rgba(255, 255, 255, ${dot.alpha})`;
+            this.ctx.beginPath();
+            this.ctx.arc(dot.x, dot.y, dot.size, 0, Math.PI * 2);
+            this.ctx.fill();
+        }
+        
+        // Draw scratches
+        this.ctx.lineWidth = 1;
+        for (const scratch of this.variations.scratches) {
+            this.ctx.strokeStyle = `rgba(255, 255, 255, ${scratch.alpha})`;
+            this.ctx.beginPath();
+            this.ctx.moveTo(scratch.x1, scratch.y1);
+            this.ctx.lineTo(scratch.x2, scratch.y2);
+            this.ctx.stroke();
+        }
+        
+        // Draw corner accent (very subtle glow in corner)
+        const accent = this.variations.cornerAccent;
+        const gradient = this.ctx.createRadialGradient(
+            accent.corner % 2 === 0 ? 0 : this.width,
+            accent.corner < 2 ? 0 : this.height,
+            0,
+            accent.corner % 2 === 0 ? 0 : this.width,
+            accent.corner < 2 ? 0 : this.height,
+            100
+        );
+        gradient.addColorStop(0, `rgba(0, 245, 255, ${accent.alpha})`);
+        gradient.addColorStop(1, 'rgba(0, 245, 255, 0)');
+        this.ctx.fillStyle = gradient;
         this.ctx.fillRect(0, 0, this.width, this.height);
     }
     
@@ -159,4 +248,3 @@ class GameRenderer {
 
 // Export for use
 window.GameRenderer = GameRenderer;
-

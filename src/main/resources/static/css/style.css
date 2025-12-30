@@ -428,7 +428,304 @@ body {
     margin-top: 10px;
 }
 
-/* Join Page */
+/* Lobby Page (Court Selection) */
+.lobby-page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 20px 0;
+}
+
+.lobby-page .page-title {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 1.8rem;
+    text-align: center;
+    color: var(--neon-cyan);
+    text-shadow: 0 0 20px var(--neon-cyan);
+    margin-bottom: 20px;
+}
+
+.name-entry {
+    max-width: 400px;
+    margin: 0 auto 30px;
+    text-align: center;
+}
+
+.name-entry label {
+    display: block;
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.7rem;
+    color: var(--neon-yellow);
+    margin-bottom: 10px;
+}
+
+.name-entry input[type="text"] {
+    width: 100%;
+    padding: 12px 20px;
+    font-family: 'VT323', monospace;
+    font-size: 1.5rem;
+    background: var(--bg-darker);
+    border: 2px solid var(--panel-border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.name-entry input[type="text"]:focus {
+    outline: none;
+    border-color: var(--neon-cyan);
+    box-shadow: 0 0 15px rgba(0, 245, 255, 0.3);
+}
+
+.name-entry input[type="text"]::placeholder {
+    color: var(--text-secondary);
+}
+
+.name-entry .name-error {
+    margin-top: 10px;
+}
+
+.section-title {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.9rem;
+    text-align: center;
+    color: var(--text-secondary);
+    margin-bottom: 25px;
+}
+
+/* Courts Grid */
+.courts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+}
+
+.court-card {
+    background: var(--panel-bg);
+    border: 2px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 15px;
+    transition: all 0.3s ease;
+}
+
+.court-card:hover {
+    border-color: var(--neon-cyan);
+    box-shadow: 0 0 20px rgba(0, 245, 255, 0.2);
+}
+
+.court-card.in-progress {
+    border-color: var(--neon-yellow);
+    box-shadow: 0 0 15px rgba(255, 255, 0, 0.2);
+}
+
+.court-preview {
+    position: relative;
+    margin-bottom: 10px;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.court-canvas {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.court-number {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.6rem;
+    color: rgba(255, 255, 255, 0.3);
+    pointer-events: none;
+}
+
+.court-status {
+    text-align: center;
+    margin-bottom: 10px;
+}
+
+.status-badge {
+    display: inline-block;
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.5rem;
+    padding: 4px 10px;
+    border-radius: 4px;
+    text-transform: uppercase;
+}
+
+.status-badge.waiting {
+    background: rgba(0, 245, 255, 0.2);
+    color: var(--neon-cyan);
+}
+
+.status-badge.ready {
+    background: rgba(0, 255, 136, 0.2);
+    color: var(--neon-green);
+}
+
+.status-badge.playing {
+    background: rgba(255, 255, 0, 0.2);
+    color: var(--neon-yellow);
+}
+
+.court-players {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.paddle-slot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 70px;
+}
+
+.paddle-slot.available {
+    background: rgba(0, 245, 255, 0.1);
+    border: 1px dashed rgba(0, 245, 255, 0.4);
+}
+
+.paddle-slot.available:hover {
+    background: rgba(0, 245, 255, 0.2);
+    border-color: var(--neon-cyan);
+    transform: scale(1.05);
+}
+
+.paddle-slot.taken {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    cursor: default;
+}
+
+.paddle-icon {
+    width: 6px;
+    height: 25px;
+    background: var(--neon-cyan);
+    border-radius: 2px;
+}
+
+.paddle-slot.taken .paddle-icon {
+    background: var(--text-secondary);
+}
+
+.paddle-slot.left .paddle-icon {
+    margin-right: auto;
+}
+
+.paddle-slot.right .paddle-icon {
+    margin-left: auto;
+}
+
+.slot-label {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.4rem;
+    color: var(--text-secondary);
+}
+
+.paddle-slot .player-name {
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    max-width: 60px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.paddle-slot .player-name.available {
+    color: var(--neon-cyan);
+    font-style: italic;
+}
+
+.ready-dot {
+    width: 6px;
+    height: 6px;
+    background: var(--neon-green);
+    border-radius: 50%;
+    box-shadow: 0 0 6px var(--neon-green);
+}
+
+.court-score-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.vs-text {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.6rem;
+    color: var(--text-secondary);
+}
+
+.court-score {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.7rem;
+    color: var(--neon-cyan);
+    text-shadow: 0 0 8px rgba(0, 245, 255, 0.5);
+}
+
+.court-score .score-value {
+    min-width: 20px;
+    text-align: center;
+}
+
+.court-score .score-separator {
+    color: var(--text-secondary);
+    font-size: 0.5rem;
+}
+
+.court-actions {
+    display: flex;
+    justify-content: center;
+}
+
+.btn-spectate {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.45rem;
+    padding: 6px 12px;
+    background: transparent;
+    border: 1px solid var(--text-secondary);
+    color: var(--text-secondary);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-spectate:hover {
+    border-color: var(--neon-magenta);
+    color: var(--neon-magenta);
+}
+
+/* Court Indicator (in game) */
+.court-indicator {
+    text-align: center;
+    margin-bottom: 10px;
+}
+
+.court-indicator span {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.6rem;
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.05);
+    padding: 4px 12px;
+    border-radius: 4px;
+}
+
+/* Join Page (legacy, if needed) */
 .join-page {
     max-width: 600px;
     margin: 0 auto;
