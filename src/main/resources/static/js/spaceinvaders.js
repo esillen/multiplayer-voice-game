@@ -41,11 +41,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Constants (rotated 90 degrees - enemies from right)
     const MIN_FREQ = 60;
     const MAX_FREQ = 500;
-    const CANVAS_WIDTH = 600;  // Swapped
-    const CANVAS_HEIGHT = 800; // Swapped
+    const CANVAS_WIDTH = 800;
+    const CANVAS_HEIGHT = 600;
     const PLAYER_SPEED = 4;  // Match paddle speed from singleplayer
     const BULLET_SPEED = 8;
-    const ENEMY_BULLET_SPEED = 4;  // Slower than player bullets
+    const ENEMY_BULLET_SPEED = 2;  // Slower than player bullets
     const ENEMY_SPEED = 1;
     const ENEMY_ROWS = 10;  // Swapped (was cols)
     const ENEMY_COLS = 5;   // Swapped (was rows)
@@ -55,6 +55,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const PLAYER_HEIGHT = 50; // Swapped
     const BULLET_WIDTH = 10;  // Swapped
     const BULLET_HEIGHT = 4;  // Swapped
+    const ENEMY_BULLET_WIDTH = 20;  // Twice the size of player bullets
+    const ENEMY_BULLET_HEIGHT = 8;  // Twice the size of player bullets
     
     // Game state
     let gameState = 'MENU'; // MENU, PLAYING, PAUSED, GAME_OVER
@@ -71,14 +73,43 @@ document.addEventListener('DOMContentLoaded', () => {
     let shotCooldown = 300; // ms between shots
     let lastEnemyShotTime = 0;
     const ENEMY_SHOOT_INTERVAL = 500; // Minimum ms between enemy shots
-    const ENEMY_SHOOT_PROBABILITY = 0.002; // Probability per frame when interval passed (very low)
+    const ENEMY_SHOOT_PROBABILITY = 0.02; // Probability per frame when interval passed (very low)
     
     let pitchDetector = null;
     let currentPitch = 'OFF';
     
+    // Starfield
+    let stars = [];
+    const NUM_STARS = 100;
+    
     // Load calibration
     let calibrationData = loadCalibration();
     updateThresholdPositions();
+    
+    // Initialize starfield
+    function initStarfield() {
+        stars = [];
+        for (let i = 0; i < NUM_STARS; i++) {
+            stars.push({
+                x: Math.random() * CANVAS_WIDTH,
+                y: Math.random() * CANVAS_HEIGHT,
+                size: Math.random() * 2 + 0.5,  // 0.5 to 2.5 pixels
+                speed: Math.random() * 2 + 0.5,  // 0.5 to 2.5 pixels per frame
+                brightness: Math.random() * 0.5 + 0.3  // 0.3 to 0.8 alpha
+            });
+        }
+    }
+    
+    function updateStarfield() {
+        stars.forEach(star => {
+            star.x -= star.speed;  // Move left
+            // Wrap around when star goes off left edge
+            if (star.x < 0) {
+                star.x = CANVAS_WIDTH;
+                star.y = Math.random() * CANVAS_HEIGHT;
+            }
+        });
+    }
     
     // Initialize pitch detector
     startMicrophone();
@@ -200,8 +231,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 enemyBullets.push({
                     x: shooter.x - ENEMY_WIDTH / 2,  // Start from left side of enemy
                     y: shooter.y,
-                    width: BULLET_WIDTH,
-                    height: BULLET_HEIGHT
+                    width: ENEMY_BULLET_WIDTH,
+                    height: ENEMY_BULLET_HEIGHT
                 });
                 lastEnemyShotTime = now;
             }
@@ -216,7 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Move enemy bullets (leftward toward player)
         enemyBullets = enemyBullets.filter(bullet => {
             bullet.x -= ENEMY_BULLET_SPEED;  // Move left (slower than player bullets)
-            return bullet.x > -BULLET_WIDTH;
+            return bullet.x > -ENEMY_BULLET_WIDTH;
         });
         
         // Check bullet-enemy collisions
@@ -311,13 +342,16 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        // Draw stars background
-        ctx.fillStyle = '#ffffff';
-        for (let i = 0; i < 50; i++) {
-            const x = (i * 17) % CANVAS_WIDTH;
-            const y = (i * 23 + Date.now() * 0.01) % CANVAS_HEIGHT;
-            ctx.fillRect(x, y, 1, 1);
-        }
+        // Draw starfield background (moving right to left)
+        stars.forEach(star => {
+            ctx.fillStyle = `rgba(255, 255, 255, ${star.brightness})`;
+            ctx.shadowColor = `rgba(255, 255, 255, ${star.brightness * 0.5})`;
+            ctx.shadowBlur = star.size * 2;
+            ctx.beginPath();
+            ctx.arc(star.x, star.y, star.size / 2, 0, Math.PI * 2);
+            ctx.fill();
+        });
+        ctx.shadowBlur = 0;
         
         // Draw player (rotated 90 degrees - pointing right)
         ctx.fillStyle = '#00f5ff';
@@ -332,21 +366,33 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.fill();
         ctx.shadowBlur = 0;
         
-        // Draw player bullets (horizontal, going right)
-        ctx.fillStyle = '#ffff00';
-        ctx.shadowColor = '#ffff00';
-        ctx.shadowBlur = 10;
+        // Draw player bullets (horizontal, going right) with glow
         bullets.forEach(bullet => {
+            // Outer glow
+            ctx.shadowColor = '#ffff00';
+            ctx.shadowBlur = 25;
+            ctx.fillStyle = '#ffff00';
             ctx.fillRect(bullet.x, bullet.y - bullet.height / 2, bullet.width, bullet.height);
+            
+            // Inner bright core
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(bullet.x + 1, bullet.y - bullet.height / 2 + 1, bullet.width - 2, bullet.height - 2);
         });
         ctx.shadowBlur = 0;
         
-        // Draw enemy bullets (horizontal, going left)
-        ctx.fillStyle = '#ff3366';
-        ctx.shadowColor = '#ff3366';
-        ctx.shadowBlur = 10;
+        // Draw enemy bullets (horizontal, going left) with glow
         enemyBullets.forEach(bullet => {
+            // Outer glow
+            ctx.shadowColor = '#ff3366';
+            ctx.shadowBlur = 25;
+            ctx.fillStyle = '#ff3366';
             ctx.fillRect(bullet.x, bullet.y - bullet.height / 2, bullet.width, bullet.height);
+            
+            // Inner bright core
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#ff99aa';
+            ctx.fillRect(bullet.x + 1, bullet.y - bullet.height / 2 + 1, bullet.width - 2, bullet.height - 2);
         });
         ctx.shadowBlur = 0;
         
@@ -372,6 +418,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function gameLoop() {
+        // Always update starfield (even in menu)
+        updateStarfield();
+        
         updateGame();
         render();
         requestAnimationFrame(gameLoop);
@@ -396,6 +445,7 @@ document.addEventListener('DOMContentLoaded', () => {
         scoreEl.textContent = score;
         waveEl.textContent = wave;
         updateLivesDisplay();
+        initStarfield();
         initEnemies();
         hideOverlay();
     }
@@ -537,6 +587,9 @@ document.addEventListener('DOMContentLoaded', () => {
     highThresholdEl.addEventListener('touchstart', (e) => handleDragStart(e, 'high'));
     document.addEventListener('touchmove', handleDrag, { passive: false });
     document.addEventListener('touchend', handleDragEnd);
+    
+    // Initialize starfield
+    initStarfield();
     
     // Start game loop
     gameLoop();
