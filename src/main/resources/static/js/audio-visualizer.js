@@ -1,5 +1,6 @@
 /**
- * Audio Visualizer - Spectrogram, Waveform, and Frequency Spectrum
+ * Audio Visualizer with Robust YIN Pitch Detection
+ * Spectrogram, Waveform, Frequency Spectrum, and accurate pitch tracking
  */
 class AudioVisualizer {
     constructor(options = {}) {
@@ -32,6 +33,23 @@ class AudioVisualizer {
             text: 'rgba(255, 255, 255, 0.5)'
         };
         
+        // YIN algorithm parameters
+        this.yinThreshold = 0.15;
+        this.probabilityThreshold = 0.6;
+        this.minFrequency = 70;
+        this.maxFrequency = 500;
+        
+        // Noise handling
+        this.noiseFloor = 0.01;
+        this.noiseFloorAlpha = 0.995;
+        this.volumeThreshold = 0.015;
+        
+        // Smoothing
+        this.medianFilterSize = 5;
+        this.frequencyHistory = [];
+        this.exponentialAlpha = 0.35;
+        this.lastSmoothedFrequency = 0;
+        
         // Callbacks
         this.onPitchDetected = options.onPitchDetected || (() => {});
     }
@@ -41,21 +59,25 @@ class AudioVisualizer {
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: {
                     echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true
+                    noiseSuppression: false, // We handle noise ourselves
+                    autoGainControl: true,
+                    channelCount: 1
                 }
             });
             
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
             this.analyser = this.audioContext.createAnalyser();
-            this.analyser.fftSize = 2048;
-            this.analyser.smoothingTimeConstant = 0.8;
+            this.analyser.fftSize = 4096; // Larger for better frequency resolution
+            this.analyser.smoothingTimeConstant = 0.3;
             
             this.microphone = this.audioContext.createMediaStreamSource(stream);
             this.microphone.connect(this.analyser);
             
             this.frequencyData = new Uint8Array(this.analyser.frequencyBinCount);
             this.timeDomainData = new Float32Array(this.analyser.fftSize);
+            
+            // Pre-allocate YIN buffer
+            this.yinBuffer = new Float32Array(this.analyser.fftSize / 2);
             
             // Initialize spectrogram
             this.spectrogramData = [];
@@ -91,7 +113,7 @@ class AudioVisualizer {
         this.drawFrequencySpectrum();
         
         // Detect pitch and notify
-        const pitch = this.detectPitch();
+        const pitch = this.detectPitchYIN();
         this.onPitchDetected(pitch);
         
         requestAnimationFrame(() => this.draw());
@@ -251,67 +273,181 @@ class AudioVisualizer {
         ctx.fillText('1kHz', width - 30, height - 5);
     }
     
-    detectPitch() {
-        const sampleRate = this.audioContext.sampleRate;
-        const SIZE = this.timeDomainData.length;
-        
-        // Check if there's enough signal
+    /**
+     * Calculate RMS (Root Mean Square) of audio buffer
+     */
+    calculateRMS(buffer) {
         let sum = 0;
-        for (let i = 0; i < SIZE; i++) {
-            sum += this.timeDomainData[i] * this.timeDomainData[i];
+        for (let i = 0; i < buffer.length; i++) {
+            sum += buffer[i] * buffer[i];
         }
-        const rms = Math.sqrt(sum / SIZE);
+        return Math.sqrt(sum / buffer.length);
+    }
+    
+    /**
+     * YIN Algorithm for robust pitch detection
+     */
+    detectPitchYIN() {
+        const sampleRate = this.audioContext.sampleRate;
+        const bufferSize = this.timeDomainData.length;
+        const yinBufferSize = bufferSize / 2;
         
-        if (rms < 0.02) {
-            return { frequency: 0, rms: rms };
+        // Calculate RMS for volume
+        const rms = this.calculateRMS(this.timeDomainData);
+        
+        // Adapt noise floor
+        if (rms < this.noiseFloor * 1.5) {
+            this.noiseFloor = this.noiseFloorAlpha * this.noiseFloor + 
+                             (1 - this.noiseFloorAlpha) * rms;
         }
         
-        // Autocorrelation
-        const correlations = new Array(SIZE / 2).fill(0);
+        const effectiveVolume = Math.max(0, rms - this.noiseFloor);
         
-        for (let lag = 0; lag < SIZE / 2; lag++) {
-            let correlation = 0;
-            for (let i = 0; i < SIZE / 2; i++) {
-                correlation += this.timeDomainData[i] * this.timeDomainData[i + lag];
+        // Check if volume is too low
+        if (effectiveVolume < this.volumeThreshold) {
+            // Clear history when silent
+            if (this.frequencyHistory.length > 0) {
+                this.frequencyHistory = [];
+                this.lastSmoothedFrequency = 0;
             }
-            correlations[lag] = correlation;
+            return { frequency: 0, rms: rms, probability: 0 };
         }
         
-        // Find first peak after initial decay
-        let foundValley = false;
-        let maxCorrelation = -1;
-        let maxLag = -1;
+        // Calculate min and max tau based on frequency range
+        const minTau = Math.floor(sampleRate / this.maxFrequency);
+        const maxTau = Math.min(Math.floor(sampleRate / this.minFrequency), yinBufferSize - 1);
         
-        for (let i = 1; i < correlations.length - 1; i++) {
-            if (!foundValley && correlations[i] < correlations[i - 1]) {
-                foundValley = true;
+        // Step 1 & 2: Compute difference function with cumulative mean normalization
+        this.yinBuffer[0] = 1;
+        let runningSum = 0;
+        
+        for (let tau = 1; tau < yinBufferSize; tau++) {
+            let delta = 0;
+            for (let i = 0; i < yinBufferSize; i++) {
+                const diff = this.timeDomainData[i] - this.timeDomainData[i + tau];
+                delta += diff * diff;
             }
             
-            if (foundValley) {
-                if (correlations[i] > correlations[i - 1] && correlations[i] > correlations[i + 1]) {
-                    if (correlations[i] > maxCorrelation) {
-                        maxCorrelation = correlations[i];
-                        maxLag = i;
-                        break;
-                    }
+            // Cumulative mean normalized difference
+            runningSum += delta;
+            this.yinBuffer[tau] = delta * tau / runningSum;
+        }
+        
+        // Step 4: Find first tau below threshold (absolute threshold)
+        let tau = minTau;
+        let foundTau = -1;
+        
+        while (tau < maxTau) {
+            if (this.yinBuffer[tau] < this.yinThreshold) {
+                // Step 5: Find local minimum
+                while (tau + 1 < maxTau && this.yinBuffer[tau + 1] < this.yinBuffer[tau]) {
+                    tau++;
                 }
+                foundTau = tau;
+                break;
+            }
+            tau++;
+        }
+        
+        // If no pitch found below threshold, find global minimum
+        if (foundTau === -1) {
+            let minVal = this.yinBuffer[minTau];
+            foundTau = minTau;
+            
+            for (let i = minTau + 1; i < maxTau; i++) {
+                if (this.yinBuffer[i] < minVal) {
+                    minVal = this.yinBuffer[i];
+                    foundTau = i;
+                }
+            }
+            
+            // Reject if minimum is too high
+            if (minVal > 0.5) {
+                return { frequency: 0, rms: rms, probability: 0 };
             }
         }
         
-        if (maxLag <= 0) {
-            return { frequency: 0, rms: rms };
+        // Step 6: Parabolic interpolation
+        let betterTau = foundTau;
+        
+        if (foundTau > 0 && foundTau < yinBufferSize - 1) {
+            const s0 = this.yinBuffer[foundTau - 1];
+            const s1 = this.yinBuffer[foundTau];
+            const s2 = this.yinBuffer[foundTau + 1];
+            
+            const adjustment = (s2 - s0) / (2 * (2 * s1 - s2 - s0));
+            
+            if (Math.abs(adjustment) < 1) {
+                betterTau = foundTau + adjustment;
+            }
         }
         
-        const frequency = sampleRate / maxLag;
+        // Calculate frequency and probability
+        const frequency = sampleRate / betterTau;
+        const probability = 1 - this.yinBuffer[foundTau];
         
-        // Filter unrealistic frequencies
-        if (frequency < 60 || frequency > 600) {
-            return { frequency: 0, rms: rms };
+        // Validate frequency range
+        if (frequency < this.minFrequency || frequency > this.maxFrequency) {
+            return { frequency: 0, rms: rms, probability: 0 };
         }
         
-        return { frequency: frequency, rms: rms };
+        // Reject low confidence detections
+        if (probability < this.probabilityThreshold) {
+            return { frequency: 0, rms: rms, probability: probability };
+        }
+        
+        // Apply smoothing
+        const smoothedFrequency = this.applySmoothing(frequency);
+        
+        return { 
+            frequency: smoothedFrequency, 
+            rms: rms, 
+            probability: probability,
+            rawFrequency: frequency
+        };
+    }
+    
+    /**
+     * Apply median filter + exponential smoothing
+     */
+    applySmoothing(frequency) {
+        this.frequencyHistory.push(frequency);
+        
+        if (this.frequencyHistory.length > this.medianFilterSize) {
+            this.frequencyHistory.shift();
+        }
+        
+        if (this.frequencyHistory.length < 3) {
+            this.lastSmoothedFrequency = frequency;
+            return frequency;
+        }
+        
+        // Median filter
+        const sorted = [...this.frequencyHistory].sort((a, b) => a - b);
+        const medianIndex = Math.floor(sorted.length / 2);
+        const medianFrequency = sorted[medianIndex];
+        
+        // Exponential smoothing with octave error correction
+        if (this.lastSmoothedFrequency === 0) {
+            this.lastSmoothedFrequency = medianFrequency;
+        } else {
+            const ratio = medianFrequency / this.lastSmoothedFrequency;
+            
+            // Correct octave errors
+            if (ratio > 1.8 && ratio < 2.2) {
+                this.lastSmoothedFrequency = this.exponentialAlpha * (medianFrequency / 2) + 
+                                            (1 - this.exponentialAlpha) * this.lastSmoothedFrequency;
+            } else if (ratio > 0.45 && ratio < 0.55) {
+                this.lastSmoothedFrequency = this.exponentialAlpha * (medianFrequency * 2) + 
+                                            (1 - this.exponentialAlpha) * this.lastSmoothedFrequency;
+            } else {
+                this.lastSmoothedFrequency = this.exponentialAlpha * medianFrequency + 
+                                            (1 - this.exponentialAlpha) * this.lastSmoothedFrequency;
+            }
+        }
+        
+        return this.lastSmoothedFrequency;
     }
 }
 
 window.AudioVisualizer = AudioVisualizer;
-

@@ -1,5 +1,6 @@
 /**
- * Voice Calibration Logic
+ * Voice Calibration - Interactive Mode
+ * Allows calibrating high/low notes and dragging threshold markers
  */
 document.addEventListener('DOMContentLoaded', () => {
     // Canvas elements
@@ -7,89 +8,86 @@ document.addEventListener('DOMContentLoaded', () => {
     const waveformCanvas = document.getElementById('waveformCanvas');
     const frequencyCanvas = document.getElementById('frequencyCanvas');
     
-    // UI elements
+    // Pitch meter elements
+    const pitchMeterBar = document.getElementById('pitchMeterBar');
     const pitchMarker = document.getElementById('pitchMarker');
+    const highThresholdEl = document.getElementById('highThreshold');
+    const lowThresholdEl = document.getElementById('lowThreshold');
+    const lowZoneFill = document.getElementById('lowZoneFill');
+    const highZoneFill = document.getElementById('highZoneFill');
+    
+    // Display elements
     const currentFrequency = document.getElementById('currentFrequency');
     const currentPitchLabel = document.getElementById('currentPitchLabel');
+    const lowThresholdValue = document.getElementById('lowThresholdValue');
+    const highThresholdValue = document.getElementById('highThresholdValue');
+    const lowValue = document.getElementById('lowValue');
+    const highValue = document.getElementById('highValue');
     const testPaddle = document.getElementById('testPaddle');
-    const testSection = document.getElementById('testSection');
-    const calibrationModal = document.getElementById('calibrationModal');
-    
-    // Step elements
-    const steps = document.querySelectorAll('.step');
-    const progressDots = document.querySelectorAll('.progress-dot');
     
     // Buttons
-    const startBtn = document.getElementById('startCalibration');
-    const recordHighBtn = document.getElementById('recordHigh');
-    const retryHighBtn = document.getElementById('retryHigh');
-    const recordLowBtn = document.getElementById('recordLow');
-    const retryLowBtn = document.getElementById('retryLow');
-    const recalibrateBtn = document.getElementById('recalibrate');
-    const testCalibrationBtn = document.getElementById('testCalibration');
+    const calibrateLowBtn = document.getElementById('calibrateLow');
+    const calibrateHighBtn = document.getElementById('calibrateHigh');
+    const resetBtn = document.getElementById('resetCalibration');
     
-    // Recording indicators
-    const highRecording = document.getElementById('highRecording');
-    const lowRecording = document.getElementById('lowRecording');
-    const highCountdown = document.getElementById('highCountdown');
-    const lowCountdown = document.getElementById('lowCountdown');
-    const highValue = document.getElementById('highValue');
-    const lowValue = document.getElementById('lowValue');
+    // Recording rings
+    const lowRecordingRing = document.getElementById('lowRecordingRing');
+    const highRecordingRing = document.getElementById('highRecordingRing');
     
-    // Summary
-    const summaryHigh = document.getElementById('summaryHigh');
-    const summaryLow = document.getElementById('summaryLow');
+    // Constants
+    const MIN_FREQ = 60;
+    const MAX_FREQ = 500;
+    const DEFAULT_LOW = 180;
+    const DEFAULT_HIGH = 280;
     
     // State
-    let currentStep = 0;
     let visualizer = null;
     let calibrationData = {
-        highPitches: [],
-        lowPitches: [],
-        highThreshold: 280,
-        lowThreshold: 180
+        lowThreshold: DEFAULT_LOW,
+        highThreshold: DEFAULT_HIGH
     };
     let isRecording = false;
     let recordingType = null;
-    let recordingTimeout = null;
+    let recordedPitches = [];
+    let currentFreq = 0;
     
-    // Load existing calibration
+    // Load saved calibration
     loadCalibration();
+    updateThresholdDisplay();
+    updateThresholdPositions();
     
-    // Modal functions
-    function showModal() {
-        calibrationModal.classList.remove('hidden');
-    }
+    // Initialize visualizer and start immediately
+    initVisualizer();
     
-    function hideModal() {
-        calibrationModal.classList.add('hidden');
-    }
-    
-    // Initialize visualizer
-    function initVisualizer() {
+    async function initVisualizer() {
         visualizer = new AudioVisualizer({
             spectrogramCanvas,
             waveformCanvas,
             frequencyCanvas,
             onPitchDetected: handlePitchDetected
         });
+        
+        const success = await visualizer.start();
+        if (!success) {
+            alert('Failed to access microphone. Please allow microphone access and reload.');
+        }
     }
     
     function handlePitchDetected(data) {
-        const { frequency, rms } = data;
+        const { frequency, rms, probability } = data;
+        currentFreq = frequency;
         
-        // Update frequency display
         if (frequency > 0) {
-            currentFrequency.textContent = `${Math.round(frequency)} Hz`;
+            // Show frequency with confidence indicator
+            const confidenceStr = probability ? ` (${Math.round(probability * 100)}%)` : '';
+            currentFrequency.textContent = `${Math.round(frequency)} Hz${confidenceStr}`;
             
-            // Update pitch marker position (0-100%)
-            const minFreq = 60;
-            const maxFreq = 500;
-            const position = Math.min(100, Math.max(0, ((frequency - minFreq) / (maxFreq - minFreq)) * 100));
+            // Update pitch marker position
+            const position = freqToPercent(frequency);
             pitchMarker.style.left = `${position}%`;
             pitchMarker.classList.add('active');
             
-            // Determine pitch category based on calibration
+            // Determine pitch category
             let pitchCategory;
             if (frequency >= calibrationData.highThreshold) {
                 pitchCategory = 'HIGH';
@@ -103,262 +101,228 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             currentPitchLabel.textContent = pitchCategory;
             
-            // Update test paddle if testing
-            if (testPaddle && testSection && testSection.style.display !== 'none') {
-                updateTestPaddle(pitchCategory);
-            }
+            // Update test paddle
+            updateTestPaddle(pitchCategory);
             
-            // Record pitch if recording
-            if (isRecording && frequency > 0) {
-                if (recordingType === 'high') {
-                    calibrationData.highPitches.push(frequency);
-                } else if (recordingType === 'low') {
-                    calibrationData.lowPitches.push(frequency);
-                }
+            // Record pitch if calibrating (only record high-confidence readings)
+            if (isRecording && frequency > 0 && (!probability || probability > 0.6)) {
+                recordedPitches.push(frequency);
             }
         } else {
             currentFrequency.textContent = '-- Hz';
             currentPitchLabel.textContent = 'SILENT';
             currentPitchLabel.className = 'pitch-state';
             pitchMarker.classList.remove('active');
-            
-            if (testPaddle && testSection && testSection.style.display !== 'none') {
-                updateTestPaddle('OFF');
-            }
+            updateTestPaddle('OFF');
         }
     }
     
     function updateTestPaddle(pitch) {
-        const paddle = testPaddle;
-        let targetPosition;
-        
+        let position;
         switch (pitch) {
-            case 'HIGH':
-                targetPosition = 10; // Top
-                break;
-            case 'LOW':
-                targetPosition = 90; // Bottom
-                break;
-            default:
-                targetPosition = 50; // Middle
+            case 'HIGH': position = 90; break;
+            case 'LOW': position = 10; break;
+            default: position = 50;
         }
-        
-        paddle.style.top = `${targetPosition}%`;
-        paddle.className = `paddle-indicator ${pitch.toLowerCase()}`;
+        testPaddle.style.left = `${position}%`;
+        testPaddle.className = `paddle-indicator ${pitch.toLowerCase()}`;
     }
     
-    // Step navigation
-    function goToStep(stepNum) {
-        currentStep = stepNum;
-        
-        steps.forEach((step, index) => {
-            step.classList.toggle('active', index === stepNum);
-        });
-        
-        progressDots.forEach((dot, index) => {
-            dot.classList.toggle('active', index <= stepNum);
-            dot.classList.toggle('completed', index < stepNum);
-        });
+    // Frequency to percentage conversion
+    function freqToPercent(freq) {
+        return Math.min(100, Math.max(0, ((freq - MIN_FREQ) / (MAX_FREQ - MIN_FREQ)) * 100));
     }
     
-    // Recording functions
-    function startRecording(type, duration = 3000) {
+    function percentToFreq(percent) {
+        return MIN_FREQ + (percent / 100) * (MAX_FREQ - MIN_FREQ);
+    }
+    
+    // Update threshold marker positions
+    function updateThresholdPositions() {
+        const lowPos = freqToPercent(calibrationData.lowThreshold);
+        const highPos = freqToPercent(calibrationData.highThreshold);
+        
+        lowThresholdEl.style.left = `${lowPos}%`;
+        highThresholdEl.style.left = `${highPos}%`;
+        
+        // Update zone fills
+        lowZoneFill.style.width = `${lowPos}%`;
+        highZoneFill.style.left = `${highPos}%`;
+        highZoneFill.style.width = `${100 - highPos}%`;
+    }
+    
+    function updateThresholdDisplay() {
+        lowThresholdValue.textContent = `${Math.round(calibrationData.lowThreshold)} Hz`;
+        highThresholdValue.textContent = `${Math.round(calibrationData.highThreshold)} Hz`;
+        lowValue.textContent = `${Math.round(calibrationData.lowThreshold)} Hz`;
+        highValue.textContent = `${Math.round(calibrationData.highThreshold)} Hz`;
+    }
+    
+    // Calibration recording
+    function startRecording(type) {
+        if (isRecording) return;
+        
         isRecording = true;
         recordingType = type;
+        recordedPitches = [];
         
-        const recordingEl = type === 'high' ? highRecording : lowRecording;
-        const countdownEl = type === 'high' ? highCountdown : lowCountdown;
-        const recordBtn = type === 'high' ? recordHighBtn : recordLowBtn;
+        const btn = type === 'low' ? calibrateLowBtn : calibrateHighBtn;
+        const ring = type === 'low' ? lowRecordingRing : highRecordingRing;
         
-        // Clear previous data
-        if (type === 'high') {
-            calibrationData.highPitches = [];
-        } else {
-            calibrationData.lowPitches = [];
-        }
+        btn.classList.add('recording');
+        ring.classList.add('active');
         
-        // Hide modal during recording so user can see visualizations
-        hideModal();
-        
-        recordingEl.classList.add('active');
-        recordBtn.disabled = true;
-        
-        // Countdown
-        let countdown = 3;
-        countdownEl.textContent = countdown;
-        
-        const countdownInterval = setInterval(() => {
-            countdown--;
-            countdownEl.textContent = countdown;
-            if (countdown <= 0) {
-                clearInterval(countdownInterval);
-            }
-        }, 1000);
-        
-        // Stop recording after duration
-        recordingTimeout = setTimeout(() => {
+        // Record for 2 seconds
+        setTimeout(() => {
             stopRecording(type);
-        }, duration);
+        }, 2000);
     }
     
     function stopRecording(type) {
         isRecording = false;
-        recordingType = null;
         
-        const recordingEl = type === 'high' ? highRecording : lowRecording;
-        const valueEl = type === 'high' ? highValue : lowValue;
-        const recordBtn = type === 'high' ? recordHighBtn : recordLowBtn;
-        const retryBtn = type === 'high' ? retryHighBtn : retryLowBtn;
-        const pitches = type === 'high' ? calibrationData.highPitches : calibrationData.lowPitches;
+        const btn = type === 'low' ? calibrateLowBtn : calibrateHighBtn;
+        const ring = type === 'low' ? lowRecordingRing : highRecordingRing;
         
-        recordingEl.classList.remove('active');
-        recordBtn.disabled = false;
+        btn.classList.remove('recording');
+        ring.classList.remove('active');
         
-        // Show modal again
-        showModal();
-        
-        if (pitches.length > 0) {
-            // Calculate average pitch
-            const avgPitch = pitches.reduce((a, b) => a + b, 0) / pitches.length;
-            valueEl.querySelector('.value').textContent = `${Math.round(avgPitch)} Hz`;
-            valueEl.classList.add('recorded');
+        if (recordedPitches.length >= 3) {
+            // Use median instead of average for robustness against outliers
+            const sorted = [...recordedPitches].sort((a, b) => a - b);
             
-            // Store threshold
-            if (type === 'high') {
-                calibrationData.highThreshold = Math.round(avgPitch * 0.85); // 85% of high pitch
+            // Remove top and bottom 10% as outliers
+            const trimAmount = Math.floor(sorted.length * 0.1);
+            const trimmed = sorted.slice(trimAmount, sorted.length - trimAmount);
+            
+            // Get median of trimmed data
+            const medianPitch = trimmed.length > 0 
+                ? trimmed[Math.floor(trimmed.length / 2)]
+                : sorted[Math.floor(sorted.length / 2)];
+            
+            console.log(`Calibration ${type}: recorded ${recordedPitches.length} samples, median: ${medianPitch.toFixed(1)} Hz`);
+            
+            if (type === 'low') {
+                // Set low threshold above the recorded low pitch (with some margin)
+                calibrationData.lowThreshold = Math.round(medianPitch * 1.1);
             } else {
-                calibrationData.lowThreshold = Math.round(avgPitch * 1.15); // 115% of low pitch
+                // Set high threshold below the recorded high pitch (with some margin)
+                calibrationData.highThreshold = Math.round(medianPitch * 0.9);
             }
             
-            // Show retry button and next step after delay
-            retryBtn.style.display = 'inline-flex';
-            recordBtn.style.display = 'none';
+            // Ensure minimum gap between thresholds
+            const minGap = 40;
+            if (calibrationData.highThreshold - calibrationData.lowThreshold < minGap) {
+                const mid = (calibrationData.lowThreshold + calibrationData.highThreshold) / 2;
+                calibrationData.lowThreshold = Math.round(mid - minGap / 2);
+                calibrationData.highThreshold = Math.round(mid + minGap / 2);
+            }
             
-            setTimeout(() => {
-                if (type === 'high') {
-                    goToStep(2);
-                } else {
-                    finishCalibration();
-                }
-            }, 1000);
+            updateThresholdDisplay();
+            updateThresholdPositions();
+            saveCalibration();
         } else {
-            valueEl.querySelector('.value').textContent = 'No voice detected';
-            valueEl.classList.add('error');
+            console.warn(`Calibration ${type}: not enough samples (${recordedPitches.length})`);
+        }
+        
+        recordingType = null;
+    }
+    
+    // Button event listeners
+    calibrateLowBtn.addEventListener('click', () => startRecording('low'));
+    calibrateHighBtn.addEventListener('click', () => startRecording('high'));
+    
+    resetBtn.addEventListener('click', () => {
+        calibrationData.lowThreshold = DEFAULT_LOW;
+        calibrationData.highThreshold = DEFAULT_HIGH;
+        updateThresholdDisplay();
+        updateThresholdPositions();
+        saveCalibration();
+    });
+    
+    // Drag and drop for threshold markers
+    let draggedMarker = null;
+    let dragType = null;
+    
+    function handleDragStart(e, type) {
+        draggedMarker = e.target.closest('.threshold-marker');
+        dragType = type;
+        draggedMarker.classList.add('dragging');
+        
+        // For touch events
+        if (e.type === 'touchstart') {
+            e.preventDefault();
         }
     }
     
-    function finishCalibration() {
-        // Update summary
-        summaryHigh.textContent = `${calibrationData.highThreshold} Hz`;
-        summaryLow.textContent = `${calibrationData.lowThreshold} Hz`;
+    function handleDrag(e) {
+        if (!draggedMarker) return;
         
-        // Save calibration
-        saveCalibration();
+        e.preventDefault();
         
-        // Go to final step
-        goToStep(3);
+        const rect = pitchMeterBar.getBoundingClientRect();
+        const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+        let percent = ((clientX - rect.left) / rect.width) * 100;
+        percent = Math.min(100, Math.max(0, percent));
+        
+        const freq = percentToFreq(percent);
+        
+        if (dragType === 'low') {
+            // Don't allow low to exceed high
+            if (freq < calibrationData.highThreshold - 20) {
+                calibrationData.lowThreshold = Math.round(freq);
+            }
+        } else {
+            // Don't allow high to go below low
+            if (freq > calibrationData.lowThreshold + 20) {
+                calibrationData.highThreshold = Math.round(freq);
+            }
+        }
+        
+        updateThresholdDisplay();
+        updateThresholdPositions();
     }
     
+    function handleDragEnd() {
+        if (draggedMarker) {
+            draggedMarker.classList.remove('dragging');
+            saveCalibration();
+        }
+        draggedMarker = null;
+        dragType = null;
+    }
+    
+    // Mouse events
+    lowThresholdEl.addEventListener('mousedown', (e) => handleDragStart(e, 'low'));
+    highThresholdEl.addEventListener('mousedown', (e) => handleDragStart(e, 'high'));
+    document.addEventListener('mousemove', handleDrag);
+    document.addEventListener('mouseup', handleDragEnd);
+    
+    // Touch events
+    lowThresholdEl.addEventListener('touchstart', (e) => handleDragStart(e, 'low'));
+    highThresholdEl.addEventListener('touchstart', (e) => handleDragStart(e, 'high'));
+    document.addEventListener('touchmove', handleDrag, { passive: false });
+    document.addEventListener('touchend', handleDragEnd);
+    
+    // Storage functions
     function saveCalibration() {
         localStorage.setItem('voiceCalibration', JSON.stringify({
-            highThreshold: calibrationData.highThreshold,
             lowThreshold: calibrationData.lowThreshold,
+            highThreshold: calibrationData.highThreshold,
             calibratedAt: new Date().toISOString()
         }));
     }
     
     function loadCalibration() {
-        const saved = localStorage.getItem('voiceCalibration');
-        if (saved) {
-            try {
+        try {
+            const saved = localStorage.getItem('voiceCalibration');
+            if (saved) {
                 const data = JSON.parse(saved);
-                calibrationData.highThreshold = data.highThreshold || 280;
-                calibrationData.lowThreshold = data.lowThreshold || 180;
-            } catch (e) {
-                console.error('Failed to load calibration:', e);
+                calibrationData.lowThreshold = data.lowThreshold || DEFAULT_LOW;
+                calibrationData.highThreshold = data.highThreshold || DEFAULT_HIGH;
             }
+        } catch (e) {
+            console.error('Failed to load calibration:', e);
         }
-    }
-    
-    function resetCalibration() {
-        calibrationData = {
-            highPitches: [],
-            lowPitches: [],
-            highThreshold: 280,
-            lowThreshold: 180
-        };
-        
-        // Reset UI
-        highValue.classList.remove('recorded', 'error');
-        highValue.querySelector('.value').textContent = '-- Hz';
-        lowValue.classList.remove('recorded', 'error');
-        lowValue.querySelector('.value').textContent = '-- Hz';
-        
-        retryHighBtn.style.display = 'none';
-        retryLowBtn.style.display = 'none';
-        recordHighBtn.style.display = 'inline-flex';
-        recordLowBtn.style.display = 'inline-flex';
-        
-        // Hide test section
-        if (testSection) testSection.style.display = 'none';
-        
-        // Show modal
-        showModal();
-        goToStep(0);
-    }
-    
-    // Event listeners
-    startBtn.addEventListener('click', async () => {
-        initVisualizer();
-        const success = await visualizer.start();
-        if (success) {
-            goToStep(1);
-        } else {
-            alert('Failed to access microphone. Please allow microphone access and try again.');
-        }
-    });
-    
-    recordHighBtn.addEventListener('click', () => {
-        startRecording('high');
-    });
-    
-    retryHighBtn.addEventListener('click', () => {
-        highValue.classList.remove('recorded', 'error');
-        highValue.querySelector('.value').textContent = '-- Hz';
-        retryHighBtn.style.display = 'none';
-        recordHighBtn.style.display = 'inline-flex';
-        calibrationData.highPitches = [];
-    });
-    
-    recordLowBtn.addEventListener('click', () => {
-        startRecording('low');
-    });
-    
-    retryLowBtn.addEventListener('click', () => {
-        lowValue.classList.remove('recorded', 'error');
-        lowValue.querySelector('.value').textContent = '-- Hz';
-        retryLowBtn.style.display = 'none';
-        recordLowBtn.style.display = 'inline-flex';
-        calibrationData.lowPitches = [];
-    });
-    
-    recalibrateBtn.addEventListener('click', () => {
-        resetCalibration();
-    });
-    
-    // Test button - hide modal and show test paddle
-    testCalibrationBtn.addEventListener('click', () => {
-        hideModal();
-        if (testSection) testSection.style.display = 'block';
-    });
-    
-    // Back button - show modal again
-    const backToModalBtn = document.getElementById('backToModal');
-    if (backToModalBtn) {
-        backToModalBtn.addEventListener('click', () => {
-            showModal();
-            if (testSection) testSection.style.display = 'none';
-        });
     }
 });
-
