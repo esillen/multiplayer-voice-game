@@ -399,20 +399,56 @@ document.addEventListener('DOMContentLoaded', () => {
     // Drag and drop for threshold markers
     let draggedMarker = null;
     let dragType = null;
+    let activeTouchId = null;
+    
+    function getClientX(e) {
+        if (e.touches && e.touches.length > 0) {
+            return e.touches[0].clientX;
+        }
+        if (e.changedTouches && e.changedTouches.length > 0) {
+            return e.changedTouches[0].clientX;
+        }
+        return e.clientX;
+    }
     
     function handleDragStart(e, type) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Find the marker element
         draggedMarker = e.target.closest('.threshold-marker');
+        if (!draggedMarker) {
+            // Try finding by ID if closest didn't work
+            draggedMarker = type === 'low' ? lowThresholdEl : highThresholdEl;
+        }
+        
         dragType = type;
         draggedMarker.classList.add('dragging');
-        if (e.type === 'touchstart') e.preventDefault();
+        
+        // Track touch ID for touch events
+        if (e.touches && e.touches.length > 0) {
+            activeTouchId = e.touches[0].identifier;
+        }
+        
+        // Prevent text selection and scrolling
+        document.body.style.userSelect = 'none';
+        document.body.style.touchAction = 'none';
     }
     
     function handleDrag(e) {
         if (!draggedMarker) return;
+        
+        // For touch events, only process if it's the active touch
+        if (e.touches && e.touches.length > 0) {
+            const touch = Array.from(e.touches).find(t => t.identifier === activeTouchId);
+            if (!touch) return;
+        }
+        
         e.preventDefault();
+        e.stopPropagation();
         
         const rect = pitchMeterBar.getBoundingClientRect();
-        const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+        const clientX = getClientX(e);
         let percent = ((clientX - rect.left) / rect.width) * 100;
         percent = Math.min(100, Math.max(0, percent));
         
@@ -431,13 +467,27 @@ document.addEventListener('DOMContentLoaded', () => {
         updateThresholdPositions();
     }
     
-    function handleDragEnd() {
+    function handleDragEnd(e) {
+        if (!draggedMarker) return;
+        
+        // For touch events, only end if it's the active touch
+        if (e.changedTouches && e.changedTouches.length > 0) {
+            const touch = Array.from(e.changedTouches).find(t => t.identifier === activeTouchId);
+            if (!touch && activeTouchId !== null) return;
+        }
+        
         if (draggedMarker) {
             draggedMarker.classList.remove('dragging');
             saveCalibration();
         }
+        
+        // Restore text selection and scrolling
+        document.body.style.userSelect = '';
+        document.body.style.touchAction = '';
+        
         draggedMarker = null;
         dragType = null;
+        activeTouchId = null;
     }
     
     // Mouse events
@@ -445,12 +495,14 @@ document.addEventListener('DOMContentLoaded', () => {
     highThresholdEl.addEventListener('mousedown', (e) => handleDragStart(e, 'high'));
     document.addEventListener('mousemove', handleDrag);
     document.addEventListener('mouseup', handleDragEnd);
+    document.addEventListener('mouseleave', handleDragEnd); // Handle mouse leaving window
     
     // Touch events
-    lowThresholdEl.addEventListener('touchstart', (e) => handleDragStart(e, 'low'));
-    highThresholdEl.addEventListener('touchstart', (e) => handleDragStart(e, 'high'));
+    lowThresholdEl.addEventListener('touchstart', (e) => handleDragStart(e, 'low'), { passive: false });
+    highThresholdEl.addEventListener('touchstart', (e) => handleDragStart(e, 'high'), { passive: false });
     document.addEventListener('touchmove', handleDrag, { passive: false });
     document.addEventListener('touchend', handleDragEnd);
+    document.addEventListener('touchcancel', handleDragEnd); // Handle touch cancellation
     
     // Initial render
     renderer.renderWaiting('CONNECTING...');
