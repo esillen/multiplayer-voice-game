@@ -87,9 +87,18 @@ class GameService {
             players.remove(player.id)
             onPlayerLeft?.invoke(player)
             
-            // Pause or reset game
+            // If game was in progress, award victory to the remaining player
             if (gameState.status == GameStatus.PLAYING) {
-                gameState.status = GameStatus.PAUSED
+                val remainingPlayer = players.values.firstOrNull()
+                if (remainingPlayer != null) {
+                    gameState.status = GameStatus.FINISHED
+                    gameState.winner = remainingPlayer.name
+                    gameState.walkover = true
+                    onGameOver?.invoke(remainingPlayer.name)
+                } else {
+                    // Both players left, reset game
+                    gameState.status = GameStatus.WAITING
+                }
             } else {
                 gameState.status = GameStatus.WAITING
             }
@@ -132,7 +141,8 @@ class GameService {
             rightPlayerName = rightPlayer?.name,
             leftPlayerReady = leftPlayer?.isReady ?: false,
             rightPlayerReady = rightPlayer?.isReady ?: false,
-            winner = gameState.winner
+            winner = gameState.winner,
+            walkover = gameState.walkover
         )
     }
 
@@ -291,6 +301,7 @@ class GameService {
         gameState.leftScore = 0
         gameState.rightScore = 0
         gameState.winner = null
+        gameState.walkover = false
         gameState.leftPaddleY = CANVAS_HEIGHT / 2
         gameState.rightPaddleY = CANVAS_HEIGHT / 2
         resetBall(towardsLeft = Math.random() > 0.5)

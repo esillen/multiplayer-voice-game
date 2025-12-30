@@ -47,7 +47,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (state.status === 'PLAYING') {
                 hideOverlay();
             } else if (state.status === 'FINISHED') {
-                showOverlay(`${state.winner} WINS!`, 'Game over!', true);
+                if (state.walkover) {
+                    showOverlay(`${state.winner} WINS!`, 'Victory by walkover - opponent left the game', true);
+                } else {
+                    showOverlay(`${state.winner} WINS!`, 'Game over!', true);
+                }
             } else if (state.status === 'WAITING') {
                 showOverlay('Waiting for Players', 'The game will start when two players join and ready up!');
             } else if (state.status === 'READY_CHECK') {
@@ -71,7 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         onGameOver: (winner) => {
             console.log('Game over! Winner:', winner);
-            showOverlay(`${winner} WINS!`, 'Game over!', true);
+            // Overlay handled by onStateUpdate for walkover support
         },
         
         onError: (message) => {

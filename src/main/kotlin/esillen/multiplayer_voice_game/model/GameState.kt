@@ -22,7 +22,8 @@ data class GameState(
     var ball: Ball = Ball(),
     var leftPaddleY: Double = 250.0,
     var rightPaddleY: Double = 250.0,
-    var winner: String? = null
+    var winner: String? = null,
+    var walkover: Boolean = false
 ) {
     companion object {
         const val CANVAS_WIDTH = 800.0

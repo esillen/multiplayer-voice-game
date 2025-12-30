@@ -33,6 +33,7 @@ data class GameStateDto(
     val rightPlayerName: String?,
     val leftPlayerReady: Boolean,
     val rightPlayerReady: Boolean,
-    val winner: String?
+    val winner: String?,
+    val walkover: Boolean = false
 )
 
