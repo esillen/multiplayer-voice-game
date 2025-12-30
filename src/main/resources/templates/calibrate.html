@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/header :: head('Voice Calibration')}"></head>
+<body>
+    <div class="scanlines"></div>
+    <div class="container calibrate-container">
+        <header th:replace="~{fragments/header :: navbar}"></header>
+        
+        <main class="calibrate-page">
+            <!-- Visualization Section - Always Visible -->
+            <div class="visualizer-section">
+                <div class="viz-row">
+                    <div class="viz-panel">
+                        <h3>SPECTROGRAM</h3>
+                        <canvas id="spectrogramCanvas" width="380" height="180"></canvas>
+                    </div>
+                    <div class="viz-panel">
+                        <h3>WAVEFORM</h3>
+                        <canvas id="waveformCanvas" width="380" height="180"></canvas>
+                    </div>
+                </div>
+                <div class="viz-panel full-width">
+                    <h3>FREQUENCY SPECTRUM</h3>
+                    <canvas id="frequencyCanvas" width="780" height="120"></canvas>
+                </div>
+                <div class="pitch-meter">
+                    <div class="pitch-meter-bar">
+                        <div class="pitch-marker" id="pitchMarker"></div>
+                        <div class="pitch-zone low-zone"></div>
+                        <div class="pitch-zone mid-zone"></div>
+                        <div class="pitch-zone high-zone"></div>
+                    </div>
+                    <div class="pitch-labels">
+                        <span>LOW</span>
+                        <span>MEDIUM</span>
+                        <span>HIGH</span>
+                    </div>
+                    <div class="current-pitch">
+                        <span id="currentFrequency">-- Hz</span>
+                        <span id="currentPitchLabel" class="pitch-state">WAITING</span>
+                    </div>
+                </div>
+                
+                <!-- Test paddle - visible after calibration -->
+                <div class="test-section" id="testSection" style="display: none;">
+                    <div class="test-header">
+                        <span>🎯 TEST YOUR CALIBRATION</span>
+                        <button id="backToModal" class="btn-small">← Back</button>
+                    </div>
+                    <div class="test-paddle">
+                        <div class="paddle-track">
+                            <div class="paddle-indicator" id="testPaddle"></div>
+                        </div>
+                        <div class="paddle-labels">
+                            <span>UP</span>
+                            <span>DOWN</span>
+                        </div>
+                    </div>
+                    <p class="test-hint">Use your voice to move the paddle!</p>
+                    <a th:href="@{/join}" class="btn btn-primary" style="margin-top: 15px;">
+                        <span>🎮 PLAY GAME</span>
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Progress indicator - Always visible at bottom -->
+            <div class="step-progress">
+                <div class="progress-dot active" data-step="0"></div>
+                <div class="progress-line"></div>
+                <div class="progress-dot" data-step="1"></div>
+                <div class="progress-line"></div>
+                <div class="progress-dot" data-step="2"></div>
+                <div class="progress-line"></div>
+                <div class="progress-dot" data-step="3"></div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Modal Overlay for Calibration Steps -->
+    <div id="calibrationModal" class="calibration-modal">
+        <div class="modal-content">
+            <div id="calibrationSteps" class="calibration-steps">
+                <!-- Step 0: Start -->
+                <div class="step active" data-step="0">
+                    <div class="step-icon">🎤</div>
+                    <h2>Let's Calibrate Your Voice</h2>
+                    <p>We'll record your highest and lowest comfortable pitches to personalize the controls.</p>
+                    <button id="startCalibration" class="btn btn-primary btn-large">
+                        <span>START CALIBRATION</span>
+                    </button>
+                </div>
+                
+                <!-- Step 1: High Pitch -->
+                <div class="step" data-step="1">
+                    <div class="step-icon pulse-green">⬆️</div>
+                    <h2>Record Your HIGH Pitch</h2>
+                    <p>Make a high-pitched sound like "EEEE" or hum high.<br>Hold it steady for 3 seconds.</p>
+                    <div class="recording-indicator" id="highRecording">
+                        <div class="record-ring"></div>
+                        <span class="record-text">Recording...</span>
+                        <div class="countdown" id="highCountdown">3</div>
+                    </div>
+                    <div class="recorded-value" id="highValue">
+                        <span class="label">Recorded:</span>
+                        <span class="value">-- Hz</span>
+                    </div>
+                    <button id="recordHigh" class="btn btn-primary">
+                        <span>🎙️ RECORD HIGH PITCH</span>
+                    </button>
+                    <button id="retryHigh" class="btn btn-secondary" style="display:none;">
+                        <span>↻ TRY AGAIN</span>
+                    </button>
+                </div>
+                
+                <!-- Step 2: Low Pitch -->
+                <div class="step" data-step="2">
+                    <div class="step-icon pulse-red">⬇️</div>
+                    <h2>Record Your LOW Pitch</h2>
+                    <p>Make a low-pitched sound like "OHHH" or hum low.<br>Hold it steady for 3 seconds.</p>
+                    <div class="recording-indicator" id="lowRecording">
+                        <div class="record-ring"></div>
+                        <span class="record-text">Recording...</span>
+                        <div class="countdown" id="lowCountdown">3</div>
+                    </div>
+                    <div class="recorded-value" id="lowValue">
+                        <span class="label">Recorded:</span>
+                        <span class="value">-- Hz</span>
+                    </div>
+                    <button id="recordLow" class="btn btn-primary">
+                        <span>🎙️ RECORD LOW PITCH</span>
+                    </button>
+                    <button id="retryLow" class="btn btn-secondary" style="display:none;">
+                        <span>↻ TRY AGAIN</span>
+                    </button>
+                </div>
+                
+                <!-- Step 3: Complete -->
+                <div class="step" data-step="3">
+                    <div class="step-icon">✅</div>
+                    <h2>Calibration Complete!</h2>
+                    <div class="calibration-summary">
+                        <div class="summary-item high">
+                            <span class="label">HIGH threshold</span>
+                            <span class="value" id="summaryHigh">-- Hz</span>
+                        </div>
+                        <div class="summary-item low">
+                            <span class="label">LOW threshold</span>
+                            <span class="value" id="summaryLow">-- Hz</span>
+                        </div>
+                    </div>
+                    <p>Test your calibration with the paddle, or start playing!</p>
+                    <div class="complete-buttons">
+                        <button id="recalibrate" class="btn btn-secondary">
+                            <span>↻ RECALIBRATE</span>
+                        </button>
+                        <button id="testCalibration" class="btn btn-secondary">
+                            <span>🎯 TEST IT</span>
+                        </button>
+                        <a th:href="@{/join}" class="btn btn-primary">
+                            <span>🎮 PLAY GAME</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script th:src="@{/js/audio-visualizer.js}"></script>
+    <script th:src="@{/js/calibration.js}"></script>
+</body>
+</html>
+

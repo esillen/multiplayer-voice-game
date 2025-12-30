@@ -1,6 +1,7 @@
 /**
  * Pitch Detector using Web Audio API
  * Detects if voice is HIGH, MEDIUM, LOW, or OFF
+ * Uses calibrated thresholds from localStorage if available
  */
 class PitchDetector {
     constructor(options = {}) {
@@ -12,9 +13,12 @@ class PitchDetector {
         this.microphone = null;
         this.isRunning = false;
         
-        // Pitch thresholds (in Hz) - tuned for voice
-        this.highThreshold = 280;  // Above this = HIGH
-        this.lowThreshold = 180;   // Below this = LOW
+        // Load calibrated thresholds or use defaults
+        const calibration = this.loadCalibration();
+        this.highThreshold = calibration.highThreshold;
+        this.lowThreshold = calibration.lowThreshold;
+        
+        console.log(`Pitch thresholds - High: ${this.highThreshold}Hz, Low: ${this.lowThreshold}Hz`);
         
         // Volume threshold for detecting silence
         this.volumeThreshold = 0.02;
@@ -22,6 +26,35 @@ class PitchDetector {
         this.currentPitch = 'OFF';
         this.dataArray = null;
         this.bufferLength = 0;
+    }
+    
+    /**
+     * Load calibration from localStorage
+     */
+    loadCalibration() {
+        const defaults = { highThreshold: 280, lowThreshold: 180 };
+        
+        try {
+            const saved = localStorage.getItem('voiceCalibration');
+            if (saved) {
+                const data = JSON.parse(saved);
+                return {
+                    highThreshold: data.highThreshold || defaults.highThreshold,
+                    lowThreshold: data.lowThreshold || defaults.lowThreshold
+                };
+            }
+        } catch (e) {
+            console.warn('Failed to load voice calibration:', e);
+        }
+        
+        return defaults;
+    }
+    
+    /**
+     * Check if calibration exists
+     */
+    static isCalibrated() {
+        return localStorage.getItem('voiceCalibration') !== null;
     }
     
     async start() {

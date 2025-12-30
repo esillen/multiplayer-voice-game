@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="en">
-<head th:replace="~{fragments/header :: head('Voice Pong - Home')}"></head>
+<head th:replace="~{fragments/header :: head('Voice Game - Home')}"></head>
 <body>
     <div class="scanlines"></div>
     <div class="container">
@@ -8,7 +8,7 @@
         
         <main class="hero">
             <div class="hero-content">
-                <h1 class="title glitch" data-text="VOICE PONG">VOICE PONG</h1>
+                <h1 class="title glitch" data-text="VOICE GAME">VOICE GAME</h1>
                 <p class="subtitle">Control the paddle with your voice!</p>
                 
                 <div class="hero-description">
@@ -23,13 +23,17 @@
                 </div>
                 
                 <div class="cta-buttons">
-                    <a th:href="@{/join}" class="btn btn-primary">
-                        <span class="btn-icon">🎮</span>
-                        <span>JOIN GAME</span>
+                    <a th:href="@{/singleplayer}" class="btn btn-primary">
+                        <span class="btn-icon">🤖</span>
+                        <span>SINGLE PLAYER</span>
                     </a>
-                    <a th:href="@{/spectate}" class="btn btn-secondary">
-                        <span class="btn-icon">👁️</span>
-                        <span>SPECTATE</span>
+                    <a th:href="@{/join}" class="btn btn-primary">
+                        <span class="btn-icon">👥</span>
+                        <span>MULTIPLAYER</span>
+                    </a>
+                    <a th:href="@{/calibrate}" class="btn btn-secondary">
+                        <span class="btn-icon">🎤</span>
+                        <span>CALIBRATE</span>
                     </a>
                 </div>
             </div>

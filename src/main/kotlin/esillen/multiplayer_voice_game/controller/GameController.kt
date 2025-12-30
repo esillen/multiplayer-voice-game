@@ -42,5 +42,15 @@ class GameController(
     fun spectate(): String {
         return "spectate"
     }
+
+    @GetMapping("/calibrate")
+    fun calibrate(): String {
+        return "calibrate"
+    }
+
+    @GetMapping("/singleplayer")
+    fun singleplayer(): String {
+        return "singleplayer"
+    }
 }
 

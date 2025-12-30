@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/header :: head('Single Player - Voice Game')}"></head>
+<body>
+    <div class="scanlines"></div>
+    <div class="container play-container">
+        <header th:replace="~{fragments/header :: navbar}"></header>
+        
+        <main class="game-page">
+            <div class="singleplayer-badge">
+                <span>🤖 VS AI</span>
+            </div>
+            
+            <div class="game-header">
+                <div class="player-info left-player">
+                    <span class="player-name" id="playerName">YOU</span>
+                    <span class="score" id="playerScore">0</span>
+                </div>
+                
+                <div class="game-status">
+                    <span id="gameStatus" class="status-text">PRESS START</span>
+                </div>
+                
+                <div class="player-info right-player">
+                    <span class="score" id="aiScore">0</span>
+                    <span class="player-name">CPU</span>
+                </div>
+            </div>
+            
+            <div class="game-canvas-container">
+                <canvas id="gameCanvas" width="800" height="500"></canvas>
+                
+                <div id="gameOverlay" class="game-overlay">
+                    <div class="overlay-content" id="overlayContent">
+                        <h2>SINGLE PLAYER</h2>
+                        <p>Control your paddle with your voice!</p>
+                        <div class="difficulty-select">
+                            <label>Difficulty:</label>
+                            <div class="difficulty-buttons">
+                                <button class="diff-btn active" data-difficulty="easy">EASY</button>
+                                <button class="diff-btn" data-difficulty="medium">MEDIUM</button>
+                                <button class="diff-btn" data-difficulty="hard">HARD</button>
+                            </div>
+                        </div>
+                        <button id="startGame" class="btn btn-primary btn-large">
+                            <span>🎮 START GAME</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="controls-section">
+                <div class="voice-indicator">
+                    <div class="mic-status" id="micStatus">
+                        <span class="mic-icon">🎤</span>
+                        <span class="mic-text">Click to enable microphone</span>
+                    </div>
+                    <div class="pitch-display">
+                        <div class="pitch-bar">
+                            <div class="pitch-level" id="pitchLevel"></div>
+                        </div>
+                        <span class="pitch-label" id="pitchLabel">OFF</span>
+                    </div>
+                </div>
+                
+                <button id="pauseBtn" class="btn btn-secondary" style="display: none;">
+                    <span>⏸️ PAUSE</span>
+                </button>
+            </div>
+            
+            <div class="keyboard-hint">
+                <p>🎹 Keyboard fallback: <kbd>W</kbd> / <kbd>↑</kbd> = UP | <kbd>S</kbd> / <kbd>↓</kbd> = DOWN</p>
+            </div>
+        </main>
+        
+        <footer th:replace="~{fragments/footer :: footer}"></footer>
+    </div>
+    
+    <script th:src="@{/js/pitch-detector.js}"></script>
+    <script th:src="@{/js/game-renderer.js}"></script>
+    <script th:src="@{/js/singleplayer.js}"></script>
+</body>
+</html>
+

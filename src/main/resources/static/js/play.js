@@ -3,6 +3,22 @@
  * Connects voice input, WebSocket, and game rendering
  */
 document.addEventListener('DOMContentLoaded', () => {
+    // Check if voice is calibrated
+    if (!PitchDetector.isCalibrated()) {
+        const calibratePrompt = document.createElement('div');
+        calibratePrompt.className = 'calibrate-prompt';
+        calibratePrompt.innerHTML = `
+            <span>⚠️ Voice not calibrated</span>
+            <a href="/calibrate">Calibrate now</a>
+            <button class="dismiss-btn">✕</button>
+        `;
+        document.body.appendChild(calibratePrompt);
+        
+        calibratePrompt.querySelector('.dismiss-btn').addEventListener('click', () => {
+            calibratePrompt.remove();
+        });
+    }
+    
     // Get player info from hidden fields
     const playerName = document.getElementById('playerName').value;
     const playerSide = document.getElementById('playerSide').value;

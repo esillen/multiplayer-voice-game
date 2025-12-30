@@ -24,6 +24,7 @@ bin/
 *.jar
 *.war
 *.ear
+.kotlin/
 
 # OS generated files
 .DS_Store
