@@ -18,7 +18,7 @@
                 </div>
                 
                 <div class="form-group">
-                    <label>SELECT YOUR SIDE</label>
+                    <label>CLICK A PADDLE TO JOIN</label>
                     <div class="side-selector">
                         <label class="side-option" th:classappend="${leftTaken} ? 'disabled' : ''">
                             <input type="radio" name="side" value="LEFT" 
@@ -56,10 +56,9 @@
                     </div>
                 </div>
                 
-                <button type="submit" class="btn btn-primary btn-large">
-                    <span class="btn-icon"></span>
-                    <span>ENTER GAME</span>
-                </button>
+                <div id="nameError" class="name-error" style="display: none;">
+                    Please enter your name first
+                </div>
             </form>
             
             <div class="join-info" th:if="${leftTaken and rightTaken}">
@@ -71,20 +70,61 @@
     </div>
     
     <script>
+        const nameInput = document.getElementById('playerName');
+        const nameError = document.getElementById('nameError');
+        const sideOptions = document.querySelectorAll('.side-option:not(.disabled)');
+        
+        // Load saved name from localStorage
+        const savedName = localStorage.getItem('playerName');
+        if (savedName) {
+            nameInput.value = savedName;
+        }
+        
+        // Save name as user types
+        nameInput.addEventListener('input', () => {
+            nameError.style.display = 'none';
+        });
+        
+        // Click on side card to join immediately
+        sideOptions.forEach(option => {
+            option.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                const name = nameInput.value.trim();
+                if (!name) {
+                    nameError.style.display = 'block';
+                    nameInput.focus();
+                    return;
+                }
+                
+                const radio = this.querySelector('input[type="radio"]');
+                if (radio && !radio.disabled) {
+                    // Save name to localStorage
+                    localStorage.setItem('playerName', name);
+                    
+                    // Navigate to game
+                    window.location.href = '/play?name=' + encodeURIComponent(name) + '&side=' + radio.value;
+                }
+            });
+        });
+        
+        // Also handle form submit (enter key)
         document.getElementById('joinForm').addEventListener('submit', function(e) {
             e.preventDefault();
-            const name = document.getElementById('playerName').value.trim();
+            const name = nameInput.value.trim();
             const side = document.querySelector('input[name="side"]:checked');
             
             if (!name) {
-                alert('Please enter your name');
+                nameError.style.display = 'block';
+                nameInput.focus();
                 return;
             }
             if (!side) {
-                alert('Please select a side');
+                // Focus on selecting a side
                 return;
             }
             
+            localStorage.setItem('playerName', name);
             window.location.href = '/play?name=' + encodeURIComponent(name) + '&side=' + side.value;
         });
     </script>

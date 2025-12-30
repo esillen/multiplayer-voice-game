@@ -451,6 +451,24 @@ body {
     padding: 40px;
 }
 
+.name-error {
+    color: var(--neon-red);
+    font-size: 1.1rem;
+    text-align: center;
+    padding: 10px;
+    background: rgba(255, 51, 102, 0.1);
+    border: 1px solid var(--neon-red);
+    border-radius: 8px;
+    margin-top: 20px;
+    animation: shake 0.3s ease;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+}
+
 .form-group {
     margin-bottom: 30px;
 }
