@@ -17,6 +17,7 @@ data class Player(
     var session: WebSocketSession? = null,
     var isReady: Boolean = false,
     var pitchState: PitchState = PitchState.OFF,
-    var paddleY: Double = 250.0 // Center of 500px height canvas
+    var paddleY: Double = 250.0, // Center of 500px height canvas
+    var gameFinished: Boolean = false // True when game ended, player should disconnect
 )
 

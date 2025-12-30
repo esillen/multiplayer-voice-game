@@ -5,6 +5,8 @@ import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import org.springframework.web.socket.WebSocketSession
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 @Service
 class GameService {
@@ -19,12 +21,18 @@ class GameService {
     // Track which court each session belongs to
     private val sessionToCourt = ConcurrentHashMap<WebSocketSession, Int>()
     
+    // Track sessions that should be disconnected after game end timeout
+    private val sessionsToDisconnect = ConcurrentHashMap<WebSocketSession, Long>()
+    
+    private val scheduler = Executors.newScheduledThreadPool(1)
+    
     // Callbacks for WebSocket broadcasts (now include courtId)
     var onStateUpdate: ((Int, GameStateDto) -> Unit)? = null
     var onPlayerJoined: ((Int, Player) -> Unit)? = null
     var onPlayerLeft: ((Int, Player) -> Unit)? = null
     var onPlayerReady: ((Int, Player) -> Unit)? = null
     var onGameOver: ((Int, String) -> Unit)? = null
+    var onGameEndWithScore: ((Int, GameEndResult) -> Unit)? = null
     var onCourtUpdate: ((List<CourtSummaryDto>) -> Unit)? = null
     var onDisconnectPlayers: ((Int, List<WebSocketSession>) -> Unit)? = null
 
@@ -76,17 +84,77 @@ class GameService {
         val courtId = sessionToCourt.remove(session) ?: return
         val court = courts[courtId] ?: return
         
-        val player = court.playerDisconnected(session)
-        if (player != null) {
-            onPlayerLeft?.invoke(courtId, player)
+        // Remove from scheduled disconnect if present
+        sessionsToDisconnect.remove(session)
+        
+        val player = court.getPlayerBySession(session)
+        
+        // If player is marked as finished, don't treat as walkover
+        if (player != null && player.gameFinished) {
+            // Just remove the player, no walkover
+            court.players.remove(player.id)
+            return
+        }
+        
+        // Normal disconnect handling
+        val wasPlaying = court.gameState.status == GameStatus.PLAYING
+        val disconnectedPlayer = court.playerDisconnected(session)
+        if (disconnectedPlayer != null) {
+            onPlayerLeft?.invoke(courtId, disconnectedPlayer)
             
-            // Check for walkover win
-            if (court.gameState.walkover && court.gameState.winner != null) {
-                onGameOver?.invoke(courtId, court.gameState.winner!!)
+            // Check for walkover win (only if game was playing and not finished)
+            if (wasPlaying && court.gameState.status == GameStatus.FINISHED && court.gameState.walkover && court.gameState.winner != null) {
+                // Handle walkover the same way as normal game end
+                handleGameEnd(court)
             }
             
             onCourtUpdate?.invoke(getAllCourtSummaries())
         }
+    }
+    
+    private fun handleGameEnd(court: Court) {
+        // Prevent duplicate handling
+        if (court.gameEndHandled) {
+            return
+        }
+        court.gameEndHandled = true
+        
+        // Call game over callback
+        if (court.gameState.winner != null) {
+            onGameOver?.invoke(court.id, court.gameState.winner!!)
+        }
+        
+        // Mark players as finished and get final score
+        val (playerSessions, gameEndResult) = court.markPlayersAsFinished()
+        
+        // Send game end message with final score to all (players and spectators)
+        onGameEndWithScore?.invoke(court.id, gameEndResult)
+        
+        // Schedule disconnect of player sessions after 10 seconds
+        val disconnectTime = System.currentTimeMillis() + 10000
+        playerSessions.forEach { session ->
+            sessionsToDisconnect[session] = disconnectTime
+        }
+        
+        scheduler.schedule({
+            playerSessions.forEach { session ->
+                if (sessionsToDisconnect.containsKey(session)) {
+                    sessionsToDisconnect.remove(session)
+                    // Force disconnect
+                    val player = court.getPlayerBySession(session)
+                    if (player != null) {
+                        court.players.remove(player.id)
+                        sessionToCourt.remove(session)
+                        onDisconnectPlayers?.invoke(court.id, listOf(session))
+                    }
+                }
+            }
+            
+            // Reset court after disconnecting players
+            court.resetGameAfterWin()
+            court.gameEndHandled = false // Reset flag for next game
+            onCourtUpdate?.invoke(getAllCourtSummaries())
+        }, 10, TimeUnit.SECONDS)
     }
 
     fun getCourtForSession(session: WebSocketSession): Int? = sessionToCourt[session]
@@ -119,24 +187,10 @@ class GameService {
             val wasPlaying = court.gameState.status == GameStatus.PLAYING
             court.gameLoop()
             
-            // Check if game just ended
-            if (wasPlaying && court.gameState.status == GameStatus.FINISHED && court.gameState.winner != null) {
+            // Check if game just ended (by score, not walkover)
+            if (wasPlaying && court.gameState.status == GameStatus.FINISHED && court.gameState.winner != null && !court.gameState.walkover) {
                 onGameOver?.invoke(court.id, court.gameState.winner!!)
-                
-                // Disconnect all players (they'll see final state on client before disconnect)
-                val playerSessions = court.disconnectAllPlayers()
-                playerSessions.forEach { session ->
-                    sessionToCourt.remove(session)
-                }
-                
-                // Notify handler to close player WebSocket sessions
-                onDisconnectPlayers?.invoke(court.id, playerSessions)
-                
-                // Reset court to 0-0 immediately (final state saved for spectators)
-                court.resetGameAfterWin()
-                
-                // Notify court update for lobby
-                onCourtUpdate?.invoke(getAllCourtSummaries())
+                handleGameEnd(court)
             }
             
             // Broadcast state update for this court

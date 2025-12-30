@@ -27,20 +27,24 @@ class Court(val id: Int) {
     
     // Store final game state for spectators after reset
     private var finalStateForSpectators: GameStateDto? = null
+    
+    // Track if game end has been handled (to prevent duplicate handling)
+    var gameEndHandled: Boolean = false
 
     fun joinGame(name: String, side: PaddleSide, session: WebSocketSession): Result<Player> {
+        // Don't allow joining if game is finished (waiting for reset)
+        if (gameState.status == GameStatus.FINISHED) {
+            return Result.failure(Exception("Game has ended. Please wait for the next game to start."))
+        }
+        
         val existingPlayer = players.values.find { it.side == side }
         if (existingPlayer != null) {
             return Result.failure(Exception("${side.name} paddle is already taken by ${existingPlayer.name}"))
         }
 
-        // If court was finished/reset and new players are joining, clear final state for spectators
+        // If court was reset and new players are joining, clear final state for spectators
         if (players.isEmpty()) {
             finalStateForSpectators = null
-            // Ensure court is in WAITING state
-            if (gameState.status == GameStatus.FINISHED) {
-                resetGame()
-            }
         }
 
         val player = Player(
@@ -87,8 +91,15 @@ class Court(val id: Int) {
     fun playerDisconnected(session: WebSocketSession): Player? {
         val player = players.values.find { it.session == session }
         if (player != null) {
+            // If player is marked as finished, just remove them (no walkover)
+            if (player.gameFinished) {
+                players.remove(player.id)
+                return player
+            }
+            
             players.remove(player.id)
             
+            // Only treat as walkover if game is still playing and player wasn't finished
             if (gameState.status == GameStatus.PLAYING) {
                 val remainingPlayer = players.values.firstOrNull()
                 if (remainingPlayer != null) {
@@ -312,6 +323,27 @@ class Court(val id: Int) {
         return false
     }
 
+    fun markPlayersAsFinished(): Pair<List<WebSocketSession>, GameEndResult> {
+        // Mark all players as finished
+        players.values.forEach { it.gameFinished = true }
+        
+        // Get final score info
+        val leftPlayer = players.values.find { it.side == PaddleSide.LEFT }
+        val rightPlayer = players.values.find { it.side == PaddleSide.RIGHT }
+        
+        val result = GameEndResult(
+            winner = gameState.winner ?: "",
+            leftScore = gameState.leftScore,
+            rightScore = gameState.rightScore,
+            leftPlayerName = leftPlayer?.name,
+            rightPlayerName = rightPlayer?.name,
+            walkover = gameState.walkover
+        )
+        
+        // Return sessions but don't clear players yet (they'll disconnect themselves)
+        return Pair(players.values.mapNotNull { it.session }.toList(), result)
+    }
+    
     fun disconnectAllPlayers(): List<WebSocketSession> {
         val playerSessions = players.values.mapNotNull { it.session }.toList()
         players.clear()
@@ -353,6 +385,7 @@ class Court(val id: Int) {
         gameState.leftPaddleY = CANVAS_HEIGHT / 2
         gameState.rightPaddleY = CANVAS_HEIGHT / 2
         resetBall(towardsLeft = Math.random() > 0.5)
+        gameEndHandled = false
 
         players.values.forEach {
             it.isReady = false
@@ -373,5 +406,14 @@ data class CourtSummaryDto(
     val visualSeed: Long,
     val leftScore: Int = 0,
     val rightScore: Int = 0
+)
+
+data class GameEndResult(
+    val winner: String,
+    val leftScore: Int,
+    val rightScore: Int,
+    val leftPlayerName: String?,
+    val rightPlayerName: String?,
+    val walkover: Boolean
 )
 

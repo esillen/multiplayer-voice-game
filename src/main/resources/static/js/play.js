@@ -156,6 +156,37 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 100);
         },
         
+        onGameEndWithScore: (message) => {
+            console.log('Game ended with score:', message);
+            // Mark WebSocket as finished to prevent reconnection
+            ws.gameFinished = true;
+            
+            // Show final score overlay
+            const isWinner = message.winner === playerName;
+            const scoreText = `${message.leftScore} - ${message.rightScore}`;
+            let title, messageText;
+            
+            if (message.walkover) {
+                if (isWinner) {
+                    title = 'YOU WIN!';
+                    messageText = `Victory by walkover - Final Score: ${scoreText}`;
+                } else {
+                    title = `${message.winner} WINS!`;
+                    messageText = `Victory by walkover - Final Score: ${scoreText}`;
+                }
+            } else {
+                title = isWinner ? 'YOU WIN!' : `${message.winner} WINS!`;
+                messageText = `Final Score: ${scoreText}`;
+            }
+            
+            showOverlay(title, messageText, true);
+            
+            // Disconnect WebSocket after a short delay
+            setTimeout(() => {
+                ws.disconnect();
+            }, 500);
+        },
+        
         onError: (message) => {
             console.error('Error:', message);
             alert('Error: ' + message);

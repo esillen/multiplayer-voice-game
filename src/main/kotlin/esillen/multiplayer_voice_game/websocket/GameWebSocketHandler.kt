@@ -30,6 +30,7 @@ class GameWebSocketHandler(
         gameService.onPlayerLeft = { courtId, player -> broadcastPlayerLeft(courtId, player) }
         gameService.onPlayerReady = { courtId, player -> broadcastPlayerReady(courtId, player) }
         gameService.onGameOver = { courtId, winner -> broadcastGameOver(courtId, winner) }
+        gameService.onGameEndWithScore = { courtId, result -> broadcastGameEndWithScore(courtId, result) }
         gameService.onCourtUpdate = { summaries -> broadcastCourtSummaries(summaries) }
         gameService.onDisconnectPlayers = { courtId, sessions -> disconnectPlayerSessions(sessions) }
     }
@@ -213,6 +214,20 @@ class GameWebSocketHandler(
 
     private fun broadcastGameOver(courtId: Int, winner: String) {
         val message = mapOf("type" to "gameOver", "courtId" to courtId, "winner" to winner)
+        broadcastToCourt(courtId, message)
+    }
+    
+    private fun broadcastGameEndWithScore(courtId: Int, result: GameEndResult) {
+        val message = mapOf(
+            "type" to "gameEndWithScore",
+            "courtId" to courtId,
+            "winner" to result.winner,
+            "leftScore" to result.leftScore,
+            "rightScore" to result.rightScore,
+            "leftPlayerName" to result.leftPlayerName,
+            "rightPlayerName" to result.rightPlayerName,
+            "walkover" to result.walkover
+        )
         broadcastToCourt(courtId, message)
     }
     

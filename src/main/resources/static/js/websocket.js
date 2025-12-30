@@ -9,6 +9,7 @@ class GameWebSocket {
         this.onPlayerReady = options.onPlayerReady || (() => {});
         this.onGameOver = options.onGameOver || (() => {});
         this.onGameFinished = options.onGameFinished || (() => {});
+        this.onGameEndWithScore = options.onGameEndWithScore || (() => {});
         this.onError = options.onError || (() => {});
         this.onConnected = options.onConnected || (() => {});
         this.onDisconnected = options.onDisconnected || (() => {});
@@ -21,6 +22,7 @@ class GameWebSocket {
         this.isConnected = false;
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 5;
+        this.gameFinished = false; // Set to true when game ends, prevents reconnection
     }
     
     connect() {
@@ -42,6 +44,12 @@ class GameWebSocket {
             console.log('WebSocket disconnected:', event.code, event.reason);
             this.isConnected = false;
             this.onDisconnected();
+            
+            // Don't reconnect if game is finished
+            if (this.gameFinished) {
+                console.log('Game finished, not reconnecting');
+                return;
+            }
             
             // Attempt reconnection
             if (this.reconnectAttempts < this.maxReconnectAttempts) {
@@ -104,6 +112,11 @@ class GameWebSocket {
             case 'gameFinished':
                 // Game ended, player will be disconnected
                 this.onGameFinished(message.message);
+                break;
+                
+            case 'gameEndWithScore':
+                // Game ended with final score - disconnect players
+                this.onGameEndWithScore(message);
                 break;
                 
             case 'courtSummaries':

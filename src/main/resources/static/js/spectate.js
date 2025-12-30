@@ -95,6 +95,25 @@ document.addEventListener('DOMContentLoaded', () => {
             // Overlay handled by onStateUpdate for walkover support
         },
         
+        onGameEndWithScore: (message) => {
+            if (message.courtId !== courtId) return;
+            console.log('Game ended with score:', message);
+            
+            // Show final score overlay for spectators
+            const scoreText = `${message.leftScore} - ${message.rightScore}`;
+            let title, messageText;
+            
+            if (message.walkover) {
+                title = `${message.winner} WINS!`;
+                messageText = `Victory by walkover - Final Score: ${scoreText}`;
+            } else {
+                title = `${message.winner} WINS!`;
+                messageText = `Final Score: ${scoreText}`;
+            }
+            
+            showOverlay(title, messageText, true);
+        },
+        
         onError: (message) => {
             console.error('Error:', message);
         }
