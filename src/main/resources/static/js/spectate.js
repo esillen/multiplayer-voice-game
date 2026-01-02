@@ -22,6 +22,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize renderer with visual seed for court variations
     const renderer = new GameRenderer(canvas, visualSeed);
     let gameState = null;
+    let previousGameStatus = null;
+    let animationFrameId = null;
     
     // Initialize WebSocket
     const ws = new GameWebSocket({
@@ -46,31 +48,52 @@ document.addEventListener('DOMContentLoaded', () => {
             // Only process updates for our court
             if (stateCourtId !== courtId) return;
             
+            // Check for READY_CHECK -> PLAYING transition to show arrow
+            if (previousGameStatus === 'READY_CHECK' && state.status === 'PLAYING') {
+                // Game just started, show arrow indicator
+                renderer.startArrow(state.ballVelocityX, state.ballVelocityY);
+            }
+            
+            // Update ball position for interpolation
+            if (state.status === 'PLAYING') {
+                renderer.updateBallPosition(state.ballX, state.ballY, state.ballVelocityX, state.ballVelocityY);
+            }
+            
+            previousGameStatus = state.status;
             gameState = state;
             updateUI(state);
             
             // Handle overlay visibility
             if (state.status === 'PLAYING') {
                 hideOverlay();
-                renderer.render(state);
-            } else if (state.status === 'FINISHED') {
-                // Show final state - keep rendering final game state
-                renderer.render(state);
-                if (state.walkover) {
-                    showOverlay(`${state.winner} WINS!`, 'Victory by walkover - opponent left the game', true);
-                } else {
-                    showOverlay(`${state.winner} WINS!`, 'Game over! Waiting for new players...', true);
+                // Start animation loop if not already running
+                if (!animationFrameId) {
+                    startAnimationLoop();
                 }
-            } else if (state.status === 'WAITING') {
-                // New players joined, court reset
+            } else {
+                // Stop animation loop when not playing
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                    animationFrameId = null;
+                }
+                // Render once for non-playing states
                 renderer.render(state);
-                showOverlay('Waiting for Players', 'The game will start when two players join and ready up!');
-            } else if (state.status === 'READY_CHECK') {
-                renderer.render(state);
-                showOverlay('Players Joined', 'Waiting for both players to ready up...');
-            } else if (state.status === 'PAUSED') {
-                renderer.render(state);
-                showOverlay('Game Paused', 'A player has disconnected');
+                
+                if (state.status === 'FINISHED') {
+                    // Show final state - keep rendering final game state
+                    if (state.walkover) {
+                        showOverlay(`${state.winner} WINS!`, 'Victory by walkover - opponent left the game', true);
+                    } else {
+                        showOverlay(`${state.winner} WINS!`, 'Game over! Waiting for new players...', true);
+                    }
+                } else if (state.status === 'WAITING') {
+                    // New players joined, court reset
+                    showOverlay('Waiting for Players', 'The game will start when two players join and ready up!');
+                } else if (state.status === 'READY_CHECK') {
+                    showOverlay('Players Joined', 'Waiting for both players to ready up...');
+                } else if (state.status === 'PAUSED') {
+                    showOverlay('Game Paused', 'A player has disconnected');
+                }
             }
         },
         
@@ -171,6 +194,19 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function hideOverlay() {
         gameOverlay.classList.add('hidden');
+    }
+    
+    // Animation loop for smooth interpolated rendering
+    function startAnimationLoop() {
+        function animate() {
+            if (gameState && gameState.status === 'PLAYING') {
+                renderer.render(gameState);
+                animationFrameId = requestAnimationFrame(animate);
+            } else {
+                animationFrameId = null;
+            }
+        }
+        animate();
     }
     
     // Initial render

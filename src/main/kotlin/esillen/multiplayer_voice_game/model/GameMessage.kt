@@ -27,6 +27,8 @@ data class GameStateDto(
     val rightScore: Int,
     val ballX: Double,
     val ballY: Double,
+    val ballVelocityX: Double = 0.0,
+    val ballVelocityY: Double = 0.0,
     val leftPaddleY: Double,
     val rightPaddleY: Double,
     val leftPlayerName: String?,

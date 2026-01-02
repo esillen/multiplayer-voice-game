@@ -58,6 +58,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentPitch = 'OFF';
     let isReady = false;
     let gameState = null;
+    let previousGameStatus = null;
+    let animationFrameId = null;
     
     // Load calibration for threshold display
     let calibrationData = loadCalibration();
@@ -88,27 +90,52 @@ document.addEventListener('DOMContentLoaded', () => {
             // Only process updates for our court
             if (stateCourtId !== courtId) return;
             
+            // Check for READY_CHECK -> PLAYING transition to show arrow
+            if (previousGameStatus === 'READY_CHECK' && state.status === 'PLAYING') {
+                // Game just started, show arrow indicator
+                renderer.startArrow(state.ballVelocityX, state.ballVelocityY);
+            }
+            
+            // Update ball position for interpolation
+            if (state.status === 'PLAYING') {
+                renderer.updateBallPosition(state.ballX, state.ballY, state.ballVelocityX, state.ballVelocityY);
+            }
+            
+            previousGameStatus = state.status;
             gameState = state;
             updateUI(state);
-            renderer.render(state);
             
             if (state.status === 'PLAYING') {
                 hideOverlay();
-            } else if (state.status === 'FINISHED') {
-                const isWinner = state.winner === playerName;
-                if (state.walkover) {
-                    if (isWinner) {
-                        showOverlay('YOU WIN!', 'Victory by walkover - opponent left the game', true);
-                    } else {
-                        showOverlay(`${state.winner} WINS!`, 'Victory by walkover', true);
-                    }
-                } else {
-                    showOverlay(`${state.winner} WINS!`, 'Game over!', true);
+                // Start animation loop if not already running
+                if (!animationFrameId) {
+                    startAnimationLoop();
                 }
-            } else if (state.status === 'WAITING') {
-                updateOverlayForWaiting();
-            } else if (state.status === 'READY_CHECK') {
-                updateOverlayForReadyCheck();
+            } else {
+                // Stop animation loop when not playing
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                    animationFrameId = null;
+                }
+                // Render once for non-playing states
+                renderer.render(state);
+                
+                if (state.status === 'FINISHED') {
+                    const isWinner = state.winner === playerName;
+                    if (state.walkover) {
+                        if (isWinner) {
+                            showOverlay('YOU WIN!', 'Victory by walkover - opponent left the game', true);
+                        } else {
+                            showOverlay(`${state.winner} WINS!`, 'Victory by walkover', true);
+                        }
+                    } else {
+                        showOverlay(`${state.winner} WINS!`, 'Game over!', true);
+                    }
+                } else if (state.status === 'WAITING') {
+                    updateOverlayForWaiting();
+                } else if (state.status === 'READY_CHECK') {
+                    updateOverlayForReadyCheck();
+                }
             }
         },
         
@@ -503,6 +530,19 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('touchmove', handleDrag, { passive: false });
     document.addEventListener('touchend', handleDragEnd);
     document.addEventListener('touchcancel', handleDragEnd); // Handle touch cancellation
+    
+    // Animation loop for smooth interpolated rendering
+    function startAnimationLoop() {
+        function animate() {
+            if (gameState && gameState.status === 'PLAYING') {
+                renderer.render(gameState);
+                animationFrameId = requestAnimationFrame(animate);
+            } else {
+                animationFrameId = null;
+            }
+        }
+        animate();
+    }
     
     // Initial render
     renderer.renderWaiting('CONNECTING...');

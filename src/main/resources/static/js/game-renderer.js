@@ -30,6 +30,18 @@ class GameRenderer {
         this.ballTrail = [];
         this.maxTrailLength = 8;
         
+        // Ball interpolation
+        this.previousBallPos = { x: this.width / 2, y: this.height / 2 };
+        this.targetBallPos = { x: this.width / 2, y: this.height / 2 };
+        this.ballVelocity = { x: 0, y: 0 };
+        this.lastUpdateTime = Date.now();
+        this.interpolationAlpha = 0;
+        
+        // Arrow indicator for game start
+        this.showArrow = false;
+        this.arrowStartTime = 0;
+        this.arrowDuration = 2000; // 2 seconds
+        
         // Generate subtle visual variations based on seed
         this.variations = this.generateVariations();
     }
@@ -161,6 +173,57 @@ class GameRenderer {
         this.ctx.shadowBlur = 0;
     }
     
+    updateBallPosition(serverX, serverY, velocityX, velocityY) {
+        // Store previous target as new previous position
+        this.previousBallPos.x = this.targetBallPos.x;
+        this.previousBallPos.y = this.targetBallPos.y;
+        
+        // Update target position from server
+        this.targetBallPos.x = serverX;
+        this.targetBallPos.y = serverY;
+        
+        // Store velocity for prediction
+        this.ballVelocity.x = velocityX;
+        this.ballVelocity.y = velocityY;
+        
+        // Reset interpolation
+        this.lastUpdateTime = Date.now();
+        this.interpolationAlpha = 0;
+    }
+    
+    getInterpolatedBallPosition() {
+        const now = Date.now();
+        const timeSinceUpdate = now - this.lastUpdateTime;
+        const updateInterval = 16; // Expected update rate (16ms = 60fps)
+        
+        // Calculate how much time has passed and predict position
+        const dt = Math.min(timeSinceUpdate, 50); // Cap at 50ms to prevent huge jumps
+        
+        // Start from target position and predict forward using velocity
+        let x = this.targetBallPos.x + this.ballVelocity.x * (dt / 16);
+        let y = this.targetBallPos.y + this.ballVelocity.y * (dt / 16);
+        
+        // Apply client-side wall collision prediction
+        const ballRadius = this.ballSize / 2;
+        
+        // Top and bottom wall bounces
+        if (y - ballRadius < 0) {
+            y = ballRadius;
+        } else if (y + ballRadius > this.height) {
+            y = this.height - ballRadius;
+        }
+        
+        // Don't predict left/right bounces (scoring zones) - let server handle those
+        // Just clamp to prevent visual glitches
+        if (x < ballRadius) {
+            x = ballRadius;
+        } else if (x > this.width - ballRadius) {
+            x = this.width - ballRadius;
+        }
+        
+        return { x, y };
+    }
+    
     drawBall(x, y) {
         // Add to trail
         this.ballTrail.push({ x, y });
@@ -200,6 +263,79 @@ class GameRenderer {
         this.ctx.shadowBlur = 0;
     }
     
+    drawArrow(velocityX, velocityY) {
+        const now = Date.now();
+        const elapsed = now - this.arrowStartTime;
+        
+        if (elapsed > this.arrowDuration) {
+            this.showArrow = false;
+            return;
+        }
+        
+        // Fade in/out effect
+        const fadeTime = 300;
+        let alpha = 1;
+        if (elapsed < fadeTime) {
+            alpha = elapsed / fadeTime;
+        } else if (elapsed > this.arrowDuration - fadeTime) {
+            alpha = (this.arrowDuration - elapsed) / fadeTime;
+        }
+        
+        // Pulsing effect
+        const pulse = 0.9 + Math.sin(elapsed / 200) * 0.1;
+        
+        // Calculate arrow direction and position
+        const centerX = this.width / 2;
+        const centerY = this.height / 2;
+        const angle = Math.atan2(velocityY, velocityX);
+        const arrowLength = 60 * pulse;
+        const arrowWidth = 30 * pulse;
+        
+        this.ctx.save();
+        this.ctx.translate(centerX, centerY);
+        this.ctx.rotate(angle);
+        
+        // Draw arrow with glow
+        this.ctx.shadowColor = this.colors.paddle;
+        this.ctx.shadowBlur = 20 * alpha;
+        this.ctx.globalAlpha = alpha;
+        
+        // Arrow body
+        this.ctx.fillStyle = this.colors.paddle;
+        this.ctx.beginPath();
+        this.ctx.moveTo(-arrowLength / 2, 0);
+        this.ctx.lineTo(arrowLength / 4, 0);
+        this.ctx.lineTo(arrowLength / 4, -arrowWidth / 3);
+        this.ctx.lineTo(arrowLength / 2, 0);
+        this.ctx.lineTo(arrowLength / 4, arrowWidth / 3);
+        this.ctx.lineTo(arrowLength / 4, 0);
+        this.ctx.closePath();
+        this.ctx.fill();
+        
+        // Arrow outline for extra visibility
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        this.ctx.lineWidth = 2;
+        this.ctx.stroke();
+        
+        this.ctx.restore();
+        this.ctx.shadowBlur = 0;
+        this.ctx.globalAlpha = 1;
+        
+        // Draw countdown text
+        const remaining = Math.ceil((this.arrowDuration - elapsed) / 1000);
+        this.ctx.font = '24px "Press Start 2P", monospace';
+        this.ctx.fillStyle = `rgba(0, 245, 255, ${alpha})`;
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText(`${remaining}`, centerX, centerY - 50);
+    }
+    
+    startArrow(velocityX, velocityY) {
+        this.showArrow = true;
+        this.arrowStartTime = Date.now();
+        this.ballVelocity.x = velocityX;
+        this.ballVelocity.y = velocityY;
+    }
+    
     drawScore(leftScore, rightScore) {
         this.ctx.font = '48px "Press Start 2P", monospace';
         this.ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
@@ -227,10 +363,18 @@ class GameRenderer {
         this.drawPaddle(this.width - this.paddleMargin - this.paddleWidth, state.rightPaddleY, 'right');
         
         if (state.status === 'PLAYING') {
-            this.drawBall(state.ballX, state.ballY);
+            // Use interpolated position for smooth rendering
+            const ballPos = this.getInterpolatedBallPosition();
+            this.drawBall(ballPos.x, ballPos.y);
+            
+            // Draw arrow if active
+            if (this.showArrow) {
+                this.drawArrow(this.ballVelocity.x, this.ballVelocity.y);
+            }
         } else {
             // Reset trail when not playing
             this.ballTrail = [];
+            this.showArrow = false;
         }
     }
     
