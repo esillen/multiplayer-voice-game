@@ -20,6 +20,7 @@ data class GameState(
     var leftScore: Int = 0,
     var rightScore: Int = 0,
     var ball: Ball = Ball(),
+    var ballReleaseTime: Long = 0, // Timestamp when ball should start moving (0 = moving)
     var leftPaddleY: Double = 250.0,
     var rightPaddleY: Double = 250.0,
     var winner: String? = null,
@@ -34,6 +35,7 @@ data class GameState(
         const val BALL_SIZE = 15.0
         const val PADDLE_SPEED = 6.0
         const val WINNING_SCORE = 11
+        const val BALL_RELEASE_DELAY = 2000L // 2 seconds delay before ball release
     }
 }
 

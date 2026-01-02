@@ -130,6 +130,7 @@ class Court(val id: Int) {
             ballY = gameState.ball.y,
             ballVelocityX = gameState.ball.velocityX,
             ballVelocityY = gameState.ball.velocityY,
+            ballReleaseTime = gameState.ballReleaseTime,
             leftPaddleY = gameState.leftPaddleY,
             rightPaddleY = gameState.rightPaddleY,
             leftPlayerName = leftPlayer?.name,
@@ -170,6 +171,9 @@ class Court(val id: Int) {
         val speed = 5.0
         gameState.ball.velocityX = if (towardsLeft) -speed else speed
         gameState.ball.velocityY = (Math.random() - 0.5) * 4
+        
+        // Set release time to 2 seconds from now (ball will show direction arrow first)
+        gameState.ballReleaseTime = System.currentTimeMillis() + GameState.BALL_RELEASE_DELAY
     }
 
     fun gameLoop() {
@@ -202,8 +206,13 @@ class Court(val id: Int) {
     }
 
     private fun updateBall() {
-        gameState.ball.x += gameState.ball.velocityX
-        gameState.ball.y += gameState.ball.velocityY
+        // Only update ball position if release time has passed
+        val currentTime = System.currentTimeMillis()
+        if (currentTime >= gameState.ballReleaseTime) {
+            gameState.ball.x += gameState.ball.velocityX
+            gameState.ball.y += gameState.ball.velocityY
+        }
+        // If release time hasn't passed, ball stays at center with velocity set (for arrow)
     }
 
     private fun checkCollisions() {
@@ -319,6 +328,7 @@ class Court(val id: Int) {
         gameState.leftPaddleY = CANVAS_HEIGHT / 2
         gameState.rightPaddleY = CANVAS_HEIGHT / 2
         resetBall(towardsLeft = Math.random() > 0.5)
+        gameState.ballReleaseTime = 0 // No delay when in WAITING state
         gameEndHandled = false
 
         players.values.forEach {

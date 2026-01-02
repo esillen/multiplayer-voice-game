@@ -37,10 +37,6 @@ class GameRenderer {
         this.lastUpdateTime = Date.now();
         this.interpolationAlpha = 0;
         
-        // Arrow indicator for game start
-        this.showArrow = false;
-        this.arrowStartTime = 0;
-        this.arrowDuration = 2000; // 2 seconds
         
         // Generate subtle visual variations based on seed
         this.variations = this.generateVariations();
@@ -263,26 +259,21 @@ class GameRenderer {
         this.ctx.shadowBlur = 0;
     }
     
-    drawArrow(velocityX, velocityY) {
-        const now = Date.now();
-        const elapsed = now - this.arrowStartTime;
-        
-        if (elapsed > this.arrowDuration) {
-            this.showArrow = false;
-            return;
-        }
-        
-        // Fade in/out effect
+    drawArrow(velocityX, velocityY, remainingMs) {
+        // Calculate fade/pulse based on remaining time
         const fadeTime = 300;
         let alpha = 1;
-        if (elapsed < fadeTime) {
-            alpha = elapsed / fadeTime;
-        } else if (elapsed > this.arrowDuration - fadeTime) {
-            alpha = (this.arrowDuration - elapsed) / fadeTime;
+        
+        if (remainingMs < 0) {
+            return; // Don't draw if time has passed
+        }
+        
+        if (remainingMs < fadeTime) {
+            alpha = remainingMs / fadeTime;
         }
         
         // Pulsing effect
-        const pulse = 0.9 + Math.sin(elapsed / 200) * 0.1;
+        const pulse = 0.9 + Math.sin(Date.now() / 200) * 0.1;
         
         // Calculate arrow direction and position
         const centerX = this.width / 2;
@@ -322,18 +313,13 @@ class GameRenderer {
         this.ctx.globalAlpha = 1;
         
         // Draw countdown text
-        const remaining = Math.ceil((this.arrowDuration - elapsed) / 1000);
-        this.ctx.font = '24px "Press Start 2P", monospace';
-        this.ctx.fillStyle = `rgba(0, 245, 255, ${alpha})`;
-        this.ctx.textAlign = 'center';
-        this.ctx.fillText(`${remaining}`, centerX, centerY - 50);
-    }
-    
-    startArrow(velocityX, velocityY) {
-        this.showArrow = true;
-        this.arrowStartTime = Date.now();
-        this.ballVelocity.x = velocityX;
-        this.ballVelocity.y = velocityY;
+        const remaining = Math.ceil(remainingMs / 1000);
+        if (remaining > 0) {
+            this.ctx.font = '24px "Press Start 2P", monospace';
+            this.ctx.fillStyle = `rgba(0, 245, 255, ${alpha})`;
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText(`${remaining}`, centerX, centerY - 50);
+        }
     }
     
     drawScore(leftScore, rightScore) {
@@ -363,18 +349,22 @@ class GameRenderer {
         this.drawPaddle(this.width - this.paddleMargin - this.paddleWidth, state.rightPaddleY, 'right');
         
         if (state.status === 'PLAYING') {
-            // Use interpolated position for smooth rendering
-            const ballPos = this.getInterpolatedBallPosition();
-            this.drawBall(ballPos.x, ballPos.y);
+            // Check if ball is waiting to be released (show arrow)
+            const now = Date.now();
+            const remainingMs = state.ballReleaseTime - now;
             
-            // Draw arrow if active
-            if (this.showArrow) {
-                this.drawArrow(this.ballVelocity.x, this.ballVelocity.y);
+            if (remainingMs > 0) {
+                // Ball is delayed, show arrow and stationary ball
+                this.drawBall(state.ballX, state.ballY);
+                this.drawArrow(state.ballVelocityX, state.ballVelocityY, remainingMs);
+            } else {
+                // Ball is released, use interpolated position for smooth rendering
+                const ballPos = this.getInterpolatedBallPosition();
+                this.drawBall(ballPos.x, ballPos.y);
             }
         } else {
             // Reset trail when not playing
             this.ballTrail = [];
-            this.showArrow = false;
         }
     }
     

@@ -29,6 +29,7 @@ data class GameStateDto(
     val ballY: Double,
     val ballVelocityX: Double = 0.0,
     val ballVelocityY: Double = 0.0,
+    val ballReleaseTime: Long = 0, // Timestamp when ball will be released (0 = already released)
     val leftPaddleY: Double,
     val rightPaddleY: Double,
     val leftPlayerName: String?,

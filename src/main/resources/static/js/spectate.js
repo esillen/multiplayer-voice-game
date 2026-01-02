@@ -48,12 +48,6 @@ document.addEventListener('DOMContentLoaded', () => {
             // Only process updates for our court
             if (stateCourtId !== courtId) return;
             
-            // Check for READY_CHECK -> PLAYING transition to show arrow
-            if (previousGameStatus === 'READY_CHECK' && state.status === 'PLAYING') {
-                // Game just started, show arrow indicator
-                renderer.startArrow(state.ballVelocityX, state.ballVelocityY);
-            }
-            
             // Update ball position for interpolation
             if (state.status === 'PLAYING') {
                 renderer.updateBallPosition(state.ballX, state.ballY, state.ballVelocityX, state.ballVelocityY);
