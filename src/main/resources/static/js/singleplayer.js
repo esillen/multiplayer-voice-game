@@ -59,6 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
             velocityX: 5,
             velocityY: 2
         },
+        ballReleaseTime: 0, // Timestamp when ball will be released (0 = released)
         difficulty: 'easy',
         winner: null
     };
@@ -215,6 +216,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const speed = 5;
         gameState.ball.velocityX = towardsPlayer ? -speed : speed;
         gameState.ball.velocityY = (Math.random() - 0.5) * 4;
+        
+        // Set release time to 2 seconds from now (show arrow and countdown)
+        gameState.ballReleaseTime = Date.now() + 2000;
     }
     
     // Game loop
@@ -274,8 +278,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function updateBall() {
-        gameState.ball.x += gameState.ball.velocityX;
-        gameState.ball.y += gameState.ball.velocityY;
+        // Only update ball position if release time has passed
+        const currentTime = Date.now();
+        if (currentTime >= gameState.ballReleaseTime) {
+            gameState.ball.x += gameState.ball.velocityX;
+            gameState.ball.y += gameState.ball.velocityY;
+        }
+        // If release time hasn't passed, ball stays at center with velocity set (for arrow)
     }
     
     function checkCollisions() {
@@ -354,8 +363,12 @@ document.addEventListener('DOMContentLoaded', () => {
             rightScore: gameState.aiScore,
             ballX: gameState.ball.x,
             ballY: gameState.ball.y,
+            ballVelocityX: gameState.ball.velocityX,
+            ballVelocityY: gameState.ball.velocityY,
+            ballReleaseTime: gameState.ballReleaseTime,
             leftPaddleY: gameState.playerPaddleY,
-            rightPaddleY: gameState.aiPaddleY
+            rightPaddleY: gameState.aiPaddleY,
+            useInterpolation: false // Disable interpolation for singleplayer
         };
         
         renderer.render(state);

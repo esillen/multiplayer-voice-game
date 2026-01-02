@@ -51,8 +51,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const ENEMY_COLS = 5;   // Swapped (was rows)
     const ENEMY_WIDTH = 30;  // Swapped
     const ENEMY_HEIGHT = 40; // Swapped
-    const PLAYER_WIDTH = 30;  // Swapped
-    const PLAYER_HEIGHT = 50; // Swapped
+    const PLAYER_WIDTH = 60;  // Double (controls vertical width since rotated)
+    const PLAYER_HEIGHT = 25; // Half (controls horizontal length since rotated)
     const BULLET_WIDTH = 10;  // Swapped
     const BULLET_HEIGHT = 4;  // Swapped
     const ENEMY_BULLET_WIDTH = 20;  // Twice the size of player bullets
@@ -270,10 +270,11 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Check enemy bullet-player collisions
         enemyBullets.forEach((bullet, bi) => {
-            if (bullet.x < playerX + PLAYER_WIDTH / 2 &&
-                bullet.x > playerX - PLAYER_WIDTH / 2 &&
-                bullet.y < playerY + PLAYER_HEIGHT / 2 &&
-                bullet.y > playerY - PLAYER_HEIGHT / 2) {
+            // Check if bullet rectangle overlaps with player rectangle
+            if (bullet.x + bullet.width > playerX - PLAYER_WIDTH / 2 &&
+                bullet.x < playerX + PLAYER_WIDTH / 2 &&
+                bullet.y + bullet.height > playerY - PLAYER_HEIGHT / 2 &&
+                bullet.y < playerY + PLAYER_HEIGHT / 2) {
                 // Player hit!
                 enemyBullets.splice(bi, 1);
                 loseLife();

@@ -48,9 +48,13 @@ document.addEventListener('DOMContentLoaded', () => {
             // Only process updates for our court
             if (stateCourtId !== courtId) return;
             
-            // Update ball position for interpolation
+            // Update ball position for interpolation (only if ball is actually released)
             if (state.status === 'PLAYING') {
-                renderer.updateBallPosition(state.ballX, state.ballY, state.ballVelocityX, state.ballVelocityY);
+                const now = Date.now();
+                const isReleased = state.ballReleaseTime === 0 || now >= state.ballReleaseTime;
+                if (isReleased) {
+                    renderer.updateBallPosition(state.ballX, state.ballY, state.ballVelocityX, state.ballVelocityY);
+                }
             }
             
             previousGameStatus = state.status;

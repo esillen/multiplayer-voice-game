@@ -170,9 +170,21 @@ class GameRenderer {
     }
     
     updateBallPosition(serverX, serverY, velocityX, velocityY) {
-        // Store previous target as new previous position
-        this.previousBallPos.x = this.targetBallPos.x;
-        this.previousBallPos.y = this.targetBallPos.y;
+        // If this is a fresh position (far from current), snap to it
+        const distanceFromTarget = Math.sqrt(
+            Math.pow(serverX - this.targetBallPos.x, 2) + 
+            Math.pow(serverY - this.targetBallPos.y, 2)
+        );
+        
+        if (distanceFromTarget > 50) {
+            // Ball teleported (likely new ball after score), snap to position
+            this.previousBallPos.x = serverX;
+            this.previousBallPos.y = serverY;
+        } else {
+            // Normal update, use previous target as new previous
+            this.previousBallPos.x = this.targetBallPos.x;
+            this.previousBallPos.y = this.targetBallPos.y;
+        }
         
         // Update target position from server
         this.targetBallPos.x = serverX;
@@ -351,16 +363,23 @@ class GameRenderer {
         if (state.status === 'PLAYING') {
             // Check if ball is waiting to be released (show arrow)
             const now = Date.now();
-            const remainingMs = state.ballReleaseTime - now;
+            const ballReleaseTime = state.ballReleaseTime || 0;
+            const remainingMs = ballReleaseTime - now;
             
-            if (remainingMs > 0) {
+            if (ballReleaseTime > 0 && remainingMs > 0) {
                 // Ball is delayed, show arrow and stationary ball
                 this.drawBall(state.ballX, state.ballY);
                 this.drawArrow(state.ballVelocityX, state.ballVelocityY, remainingMs);
             } else {
-                // Ball is released, use interpolated position for smooth rendering
-                const ballPos = this.getInterpolatedBallPosition();
-                this.drawBall(ballPos.x, ballPos.y);
+                // Ball is released
+                if (state.useInterpolation === false) {
+                    // No interpolation (singleplayer) - draw at actual position
+                    this.drawBall(state.ballX, state.ballY);
+                } else {
+                    // Use interpolated position for smooth rendering (multiplayer)
+                    const ballPos = this.getInterpolatedBallPosition();
+                    this.drawBall(ballPos.x, ballPos.y);
+                }
             }
         } else {
             // Reset trail when not playing
