@@ -32,7 +32,6 @@ class GameWebSocketHandler(
         gameService.onGameOver = { courtId, winner -> broadcastGameOver(courtId, winner) }
         gameService.onGameEndWithScore = { courtId, result -> broadcastGameEndWithScore(courtId, result) }
         gameService.onCourtUpdate = { summaries -> broadcastCourtSummaries(summaries) }
-        gameService.onDisconnectPlayers = { courtId, sessions -> disconnectPlayerSessions(sessions) }
     }
 
     override fun afterConnectionEstablished(session: WebSocketSession) {
@@ -229,24 +228,6 @@ class GameWebSocketHandler(
             "walkover" to result.walkover
         )
         broadcastToCourt(courtId, message)
-    }
-    
-    private fun disconnectPlayerSessions(sessions: List<WebSocketSession>) {
-        sessions.forEach { session ->
-            try {
-                if (session.isOpen) {
-                    // Send a final message before closing
-                    sendMessage(session, mapOf(
-                        "type" to "gameFinished",
-                        "message" to "Game ended. Returning to lobby..."
-                    ))
-                    // Close the session
-                    session.close()
-                }
-            } catch (e: Exception) {
-                logger.error("Error disconnecting player session ${session.id}: ${e.message}")
-            }
-        }
     }
     
     private fun broadcastCourtSummaries(summaries: List<CourtSummaryDto>) {

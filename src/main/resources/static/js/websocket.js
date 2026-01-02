@@ -22,7 +22,7 @@ class GameWebSocket {
         this.isConnected = false;
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 5;
-        this.gameFinished = false; // Set to true when game ends, prevents reconnection
+        this.autoReconnectEnabled = true; // Can be disabled to prevent reconnection
     }
     
     connect() {
@@ -45,9 +45,9 @@ class GameWebSocket {
             this.isConnected = false;
             this.onDisconnected();
             
-            // Don't reconnect if game is finished
-            if (this.gameFinished) {
-                console.log('Game finished, not reconnecting');
+            // Don't reconnect if auto-reconnect is disabled
+            if (!this.autoReconnectEnabled) {
+                console.log('Auto-reconnect disabled, not reconnecting');
                 return;
             }
             
@@ -179,6 +179,10 @@ class GameWebSocket {
         this.send({
             type: 'ready'
         });
+    }
+    
+    disableAutoReconnect() {
+        this.autoReconnectEnabled = false;
     }
     
     disconnect() {

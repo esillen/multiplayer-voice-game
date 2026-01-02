@@ -60,6 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let gameState = null;
     let previousGameStatus = null;
     let animationFrameId = null;
+    let gameHasEnded = false; // Track if game ended to ignore further updates
     
     // Load calibration for threshold display
     let calibrationData = loadCalibration();
@@ -89,6 +90,9 @@ document.addEventListener('DOMContentLoaded', () => {
         onStateUpdate: (state, stateCourtId) => {
             // Only process updates for our court
             if (stateCourtId !== courtId) return;
+            
+            // Ignore updates after game has ended (we're showing final screen)
+            if (gameHasEnded) return;
             
             // Check for READY_CHECK -> PLAYING transition to show arrow
             if (previousGameStatus === 'READY_CHECK' && state.status === 'PLAYING') {
@@ -161,32 +165,13 @@ document.addEventListener('DOMContentLoaded', () => {
             // Overlay handled by onStateUpdate for walkover support
         },
         
-        onGameFinished: (message) => {
-            console.log('Game finished:', message);
-            // Don't override the overlay - onStateUpdate already shows it with the button
-            // Just ensure the button is there if overlay is already showing
-            setTimeout(() => {
-                const joinBtn = document.getElementById('joinAnotherCourtBtn');
-                if (!joinBtn && gameState && gameState.status === 'FINISHED') {
-                    // If button is missing but game is finished, re-show overlay
-                    const isWinner = gameState.winner === playerName;
-                    if (gameState.walkover) {
-                        if (isWinner) {
-                            showOverlay('YOU WIN!', 'Victory by walkover - opponent left the game', true);
-                        } else {
-                            showOverlay(`${gameState.winner} WINS!`, 'Victory by walkover', true);
-                        }
-                    } else {
-                        showOverlay(`${gameState.winner} WINS!`, 'Game over!', true);
-                    }
-                }
-            }, 100);
-        },
         
         onGameEndWithScore: (message) => {
             console.log('Game ended with score:', message);
-            // Mark WebSocket as finished to prevent reconnection
-            ws.gameFinished = true;
+            
+            // Mark game as ended and disable auto-reconnect
+            gameHasEnded = true;
+            ws.disableAutoReconnect();
             
             // Show final score overlay
             const isWinner = message.winner === playerName;
@@ -207,11 +192,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             showOverlay(title, messageText, true);
-            
-            // Disconnect WebSocket after a short delay
-            setTimeout(() => {
-                ws.disconnect();
-            }, 500);
         },
         
         onError: (message) => {
